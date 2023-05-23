@@ -15,3 +15,4 @@ TODO: List problem and proposed solution
 4. Consistent LED wiring
 5. Better Dupont ribbon cables for encoders and LEDs ( Or heatshrink them)
 6. Replace hour 5 encoder
+7. Motor stall prevention: back off hourglass if supposed to be moving and no encoder change detected
