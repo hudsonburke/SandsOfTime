@@ -1,0 +1,60 @@
+CON
+  _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
+
+  {Absolute Encoder Constants}
+  CS0 = 1    ' Start of encoder chip select pin range
+  CSf = 12    ' End of encoder chip select pin range
+  NumEnc = CSf - CS0 + 1
+  CLK = 0
+  DATA = 13
+  AbsEncTolerance = 5 ' In encoder counts
+
+  {Limit Switch Constants}
+  LSRetract = 38
+  LSExtend = 37
+  IndSensor = 36
+
+  {Quadrature Encoder Constants}
+  ExtendEncTopPin = 35
+  ExtendEncBotPin = 34
+  ArmEncTopPin = 33
+  ArmEncBotPin = 32
+
+  QuadEncTolerance = 5 ' In encoder counts
+
+  {Motor Constants}
+  numClockPulses = 10
+  numBasePeriods = 1000
+
+  {LCD Constants}
+  #20, JoyUp, JoyDown, JoyLeft, JoyRight, JoyButton
+  LCDTx = 25
+
+
+pub ReadMainArmEncoder()
+  dirlow(IndSensor) ' Inverted logic
+  ' Home main arm
+  ' Start the quadrature encoder
+  pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
+  ' could find max counts
+  repeat
+    if pinr(IndSensor)==0
+      waitms(10)
+      if pinr(IndSensor)==0
+        'debug("------------------Triggered---------------")
+        dirlow(ArmEncBotPin) ' Should reset the count on the pin
+        dirhigh(ArmEncBotPin)
+    debug(`mainArm '`(rdpin(ArmEncBotPin))')
+
+{Pin Helper Methods}
+pri dirhigh(pin) ' TODO: Make these do pin ranges
+  if pin > 31
+    dirb.[pin-32]~~
+  else
+    dira.[pin]~~
+
+pri dirlow(pin)
+  if pin > 31
+    dirb.[pin-32]~
+  else
+    dira.[pin]~

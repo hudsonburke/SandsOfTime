@@ -1,0 +1,168 @@
+{DS3234 RTC Clock Library}
+{https://www.sparkfun.com/datasheets/BreakoutBoards/DS3234.pdf}
+
+CON
+  SS = 0     ' SPI Chip/Slave Select
+  MOSI = 1   ' SPI Master Out / Slave In
+  MISO = 2   ' SPI Master In / Slave Out
+  SCLK = 3   ' SPI Clock
+  SQW = -1   ' Optional Square Wave Interrupt Pin
+
+  ' Chip register addresses
+  #0, sec_r, min_r, hr_r, day_r, date_r, mo_cent_r, yr_r
+
+  ' MSB determines read or write (0 - Read, 1 - Write)
+
+  #$80, sec_w, min_w, hr_w, day_w, date_w, mo_cent_w, yr_w
+  ' TODO: Add in Alarm and other things
+
+var
+  byte time_raw[7]
+
+
+pub null() ' Not a top level object
+
+'*** SPI Helper functions ***
+
+pri SPIStart()
+  pinl(SS)
+
+pri SPIEnd()
+  pinh(SS)
+
+{{Read 1 byte via SPI into variable left shifted in; x should be address}}
+pri SPIRead(x) | i
+  repeat 8
+    pinh(SCLK)
+    byte[x] := byte[x]<<1 | pinr(MISO)  ' Sends MSB first
+    pinl(SCLK)
+
+{{Write 1 byte via SPI}}
+pri SPIWrite(value) | i
+  repeat i from 7 to 0
+    pinh(SCLK)
+    pinw(MOSI, value>>i & 1)
+    pinl(SCLK)
+
+'*** Clock Functions ***
+
+pub InitPins()
+  dirhigh(SS)
+  dirlow(MISO)
+  dirhigh(MOSI)
+  dirhigh(SCLK)
+  pinh(SS)
+
+  if SQW <> -1
+    dirlow(SQW)
+
+{{Gets raw time data from registers seconds through year $00-$06}}
+pub GetTime()  | i      ''Refresh time[0] through time[6] values
+  SPIStart()
+  SPIWrite(sec_r)
+  repeat i from 0 to 6
+    SPIRead(@time_raw[i])
+  SPIEnd()
+
+
+pub SetTime12Hr(seconds, minutes, hours)
+  SPIStart()
+  SPIWrite(sec_w)
+  seconds := (seconds/10)<<4 + seconds+//10
+  SPIWrite(seconds)
+  minutes := (minutes/10)<<4 + minutes+//10
+  SPIWrite(minutes)
+  hours:= ((hours/10)|%0100)<<4 + hours+//10  ' assumes 12 hour
+  SPIWrite(hours)
+  SPIEnd()
+
+{
+{{TODO: Set seconds through year registers ($00-$06) using readable input parameters}}
+pub SetDateAndTime(seconds, minutes, hours, AMorPM, day, date, month, year)
+  SPIStart()
+  SPIWrite(sec_w)
+  seconds := seconds/10<<4 + seconds+//10
+  SPIWrite(seconds)
+  minutes := minutes/10<<4 + minutes+//10
+  SPIWrite(minutes)
+  if hours > 12
+    hours := 0<<6 + hours/10<<4 + hours+//10
+  if is24hour <> 0
+    hours := 1<<6 + hours/10<<4 + hours+//10
+  else
+
+  SPIWrite(hours)
+  SPIWrite(day)
+  date := date/10<<4 + date+//10
+  SPIWrite(date)
+  month := month/10<<4 + month+//10
+  SPIWrite(month)
+  year := year/10<<4 + year+//10
+  SPIWrite(year)
+  SPIEnd()
+}
+pub SetSeconds(seconds)
+  SPIStart()
+  SPIWrite(sec_w)
+  SPIWrite(seconds)
+  SPIEnd()
+
+pub SetMinutes(minutes)
+  SPIStart()
+  SPIWrite(min_w)
+  SPIWrite(minutes)
+  SPIEnd()
+
+pub SetHours(hours)
+  SPIStart()
+  SPIWrite(hr_w)
+  SPIWrite(hours)
+  SPIEnd()
+
+pub SetDay(day)
+  SPIStart()
+  SPIWrite(day_w)
+  SPIWrite(day)
+  SPIEnd()
+
+pub SetDate(date)
+  SPIStart()
+  SPIWrite(date_w)
+  SPIWrite(date)
+  SPIEnd()
+
+pub SetMonth(month) ' TODO: make it also do century?
+  SPIStart()
+  SPIWrite(mo_cent_w)
+  SPIWrite(month)
+  SPIEnd()
+
+pub SetYear(year)
+  SPIStart()
+  SPIWrite(yr_w)
+  SPIWrite(year)
+  SPIEnd()
+
+{{Returns time in readable format}}
+pub ConvertToReadable() : sec, min, hr, dow, dte, mon, yr
+
+  sec:=(time_raw[0]>>4)*10 + (time_raw[0] & $0f)                       'seconds
+  min:=(time_raw[1]>>4)*10 + (time_raw[1] & $0f)                       'minutes
+  hr:=(time_raw[2]>>4 & 1)*10 + (time_raw[2] & $0f) ' assumes 12 hour                    'hours TODO: Ignores AM/PM and potential 24 hours
+  dow:=time_raw[3]                                                 'day of week
+  dte:=(time_raw[4]>>4)*10 + (time_raw[4] & $0f)                       'date
+  mon:=(time_raw[5] & $10)*10 + (time_raw[5] & $0f)                    'month
+  yr:=(time_raw[5]>>7)*100 + (time_raw[6]>>4)*10 + (time_raw[6] & $0f)    'year
+
+{Pin Helper Functions}
+pri dirhigh(pin)
+  if pin > 31
+    dirb.[pin-32]~~
+  else
+    dira.[pin]~~
+
+pri dirlow(pin)
+  if pin > 31
+    dirb.[pin-32]~
+  else
+    dira.[pin]~

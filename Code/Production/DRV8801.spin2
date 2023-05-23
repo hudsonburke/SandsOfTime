@@ -1,0 +1,99 @@
+{DRV8801 Motor Driver Library}
+{https://www.pololu.com/product/2136}
+con
+  DIR = 0     ' Logic input for controlling motor direction.
+  PWM = 1     ' Logic input for enabling the driver outputs/controlling motor speed. A PWM signal can be applied to this pin.
+  BRAKE = 2   ' Logic input for controlling whether the driver brakes low or coasts when PWM pin is low. A logic high results in braking (slow-decay through ground).
+  SLP = 3     ' Logic input that puts the DRV8801 into a low-power sleep mode when low.
+  FAULT = -1  ' Logic output that drives low when a fault occurs. The carrier board pulls this pin up to VDD.
+  CS = -1     ' Analog voltage output proportional to motor current (500 mV per A). Note: this pin will output 0 V whenever the driver is in slow-decay mode (i.e., when BRAKE/MODE1 is HIGH).
+
+  MinDuty = 0
+var
+  long clockPulses, basePeriods, minDutyPeriods
+
+obj
+  analog : "jm_ez_analog"
+
+pub null() ' Not a top level object
+
+{{
+  Initialize all pins with correct direction and start PWM Smart Pin
+    DIR default 0
+    PWM default 0 duty cycle
+    BRAKE default 0 (off)
+    SLEEP default 1 (off)
+}}
+pub InitPins(numClockPulses, numBasePeriods) | x
+  x.word[0] := numClockPulses     'Set base period's # of clock pulses 10*3.33ns=33ns
+  x.word[1] := numBasePeriods   'Set PMW frame period to be made up of 1000 base periods
+  clockPulses := numClockPulses
+  basePeriods := numBasePeriods
+  pinstart(PWM, p_oe+p_pwm_triangle, x, 0) 'Start PWM smartpin
+
+  dirhigh(DIR)
+  pinl(DIR)
+  ' May want to provide optional NC
+  dirhigh(BRAKE)
+  pinl(BRAKE)
+  dirhigh(SLP)
+  pinh(SLP) ' Active low
+
+  if FAULT <> -1
+    dirlow(FAULT)
+
+  if CS <> -1
+    ' Set up CS pin as ADC to check voltage output indicating current draw
+    analog.start(CS, 0, 1400) ' max current of 2.8 A
+
+
+{{Drive motor forward (positive speed) or backward (negative speed) with speed 0-numBasePeriods}}
+pub Drive(speed)
+  pinw(DIR, speed >> 31 & 1) ' Direction determined by sign of number (2s complement)
+  wypin(PWM, MinDuty#>abs speed<#basePeriods)
+
+{{Drive motor forward (0) or backward (1) with speed 0-numBasePeriods}}
+pub DriveDirection(speed, direction) ' any value other than 0 drives backwards
+  pinw(DIR, direction)
+  wypin(PWM, MinDuty#>speed<#basePeriods)
+
+{{Drive motor forward with speed 0-numBasePeriods}}
+pub DriveForward(speed)
+  pinl(DIR)
+  wypin(PWM, MinDuty#>speed<#basePeriods)
+
+{{Drive motor backward with speed 0-numBasePeriods}}
+pub DriveBackward(speed)
+  pinh(DIR)
+  wypin(PWM, MinDuty#>speed<#basePeriods)
+
+pub Stop()
+  ' Turn off PWM
+  wypin(PWM, 0)
+
+pub BrakeOn()
+  pinh(BRAKE)
+
+pub BrakeOff()
+  pinl(BRAKE)
+
+pub Sleep()
+  pinl(SLP)
+
+pub Wake()
+  pinh(SLP)
+
+pub ReadCurrent() : value
+  value := analog.read()
+
+pri dirhigh(pin)
+  if pin > 31
+    dirb.[pin-32]~~
+  else
+    dira.[pin]~~
+
+pri dirlow(pin)
+  if pin > 31
+    dirb.[pin-32]~
+  else
+    dira.[pin]~

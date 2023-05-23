@@ -1,0 +1,29 @@
+{Object_Title_and_Purpose}
+
+
+CON
+  _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
+
+
+OBJ
+  pst : "pst_driver"
+  DS3234 : "DS3234"       | SS=19, MOSI=18, MISO=17, SCLK=16, SQW=-1
+
+pub Test1() | second, minute, hour, day, date, month, year
+  pst.start(9600)
+  DS3234.InitPins()
+  DS3234.SetTime12Hr(30, 58, 11)
+  repeat
+    DS3234.GetTime()
+    second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
+    pst.dec(hour)
+    pst.str(string(":"))
+    if minute < 10
+      pst.dec(0)
+    pst.dec(minute)
+    pst.str(string(":"))
+    if second < 10
+      pst.dec(0)
+    pst.dec(second)
+    waitms(200)
+    pst.ClearHome()

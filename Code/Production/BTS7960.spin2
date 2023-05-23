@@ -1,0 +1,87 @@
+{BTS7960 H-Bridge Library}
+{https://www.handsontec.com/dataspecs/module/BTS7960%20Motor%20Driver.pdf}
+con
+  ' Pin assignments
+  RPWM = 1  ' Forward Level or PWM signal, Active High
+  LPWM = 2  ' Reverse Level or PWM signal, Active High
+  R_EN = 3  ' Forward Drive Enable Input, Active High/ Low Disable
+  L_EN = 4  ' Reverse Drive Enable Input, Active High/Low Disable
+  R_IS = -1  ' Forward Drive, Side current alarm output
+  L_IS = -1  ' Reverse Drive, Side current alarm output
+
+  MinDuty = 0
+  ' TODO: Maybe implement MaxDuty
+
+var
+  long clockPulses, basePeriods
+
+pub null() ' Not a top level object
+
+pub InitPins(numClockPulses, numBasePeriods) | x
+  x.word[0] := numClockPulses   'Set base period's # of clock pulses 10*3.33ns=33ns
+  x.word[1] := numBasePeriods   'Set PWM frame period to be made up of 1000 base periods
+  clockPulses := numClockPulses
+  basePeriods := numBasePeriods
+
+  pinstart(RPWM, p_oe+p_pwm_triangle, x, 0)
+  pinstart(LPWM, p_oe+p_pwm_triangle, x, 0)
+
+  dirhigh(R_EN)
+  pinl(R_EN)
+  dirhigh(L_EN)
+  pinl(L_EN)
+
+  if R_IS <> -1
+    dirlow(R_IS)
+  if L_IS <> -1
+    dirlow(L_IS)
+
+pub DriveBackward(speed)
+  pinh(L_EN)
+  pinh(R_EN)
+  wypin(LPWM,0)
+  wypin(RPWM, MinDuty#>speed<#basePeriods)
+
+pub DriveForward(speed)
+  pinh(R_EN)
+  pinh(L_EN)
+  wypin(RPWM,0)
+  wypin(LPWM, MinDuty#>speed<#basePeriods)
+
+{{Drive motor forward with speed 0-numBasePeriods}}
+pub Drive(speed)
+  if (speed >> 31 & 1) == 0 ' Direction determined by sign of number (2s complement)
+    DriveForward(abs speed)
+  else
+    DriveBackward(abs speed)
+
+
+pub DriveDirection(speed, direction) ' any value other than 0 drives backwards
+  if direction == 0
+    DriveForward(speed)
+  else
+    DriveBackward(speed)
+
+{{Disable motor and set PWM to 0% duty cycle}}
+pub Stop()
+  ' Disable
+  pinl(R_EN)
+  pinl(L_EN)
+
+  ' Turn off PWM
+  wypin(RPWM, 0)
+  wypin(LPWM, 0)
+
+' TODO: Implement alarm outputs
+
+pri dirhigh(pin)
+  if pin > 31
+    dirb.[pin-32]~~
+  else
+    dira.[pin]~~
+
+pri dirlow(pin)
+  if pin > 31
+    dirb.[pin-32]~
+  else
+    dira.[pin]~
