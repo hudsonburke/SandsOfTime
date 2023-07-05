@@ -1,13 +1,23 @@
 # Sands Of Time
 
-## Timekeeping Takeaways
+## Project Description
+
+### Overview
+
+### Mechanical
+
+### Electrical
+
+### Software
+
+## Things to remember
 1. Fuses on everything
 2. LEDs on power supply inputs
 3. Ground on bottom by convention
 4. Do everything in CAD first
 
 
-## Future To-Dos:
+## Future Work:
 TODO: List problem and proposed solution
 1. Better back mounting plate for motor and quadrature encoder 
 2. Better fitting gear on quadrature shaft wobbles as it spins
