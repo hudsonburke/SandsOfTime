@@ -1,6 +1,11 @@
 CON
 
     N_LEDS = 93    'Number of LEDs in the strip
+    'Ring 1 - 32
+    'Ring 2 - 24
+    'Ring 3 - 16
+    'Ring 4 - 12
+    'Ring 5 - 8
     MEM_START = 0x0000
     MEM_SIZE = N_LEDS * 4  'Each LED uses 4 bytes (32 bits) of color data (G,R,B + unused byte)
 
@@ -111,6 +116,13 @@ PUB RandomColor() : randcolor | rand,_red,_green,_blue,timer   ''Generates and r
   randcolor:=MakeColor(_red, _green, _blue, 255)
 
 {Animations}
+'turn on LEDs in a spiral pattern, starting outside and working inward; leds remain on
+pub SpiralOn(color, wait_time) | i
+  repeat i from 0 to N_LEDS-1
+    Set(i, color)
+    waitms(wait_time)
+
+'old animation code
 pub PulseWhite(wait_time) | i, j
   repeat i from 15 to 4
     longfill(@lights[MEM_START],Intensity(white,i),N_LEDS)
