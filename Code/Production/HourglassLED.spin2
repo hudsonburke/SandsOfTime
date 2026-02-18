@@ -140,7 +140,154 @@ pub FiveMinAnimation(wait_time) | i, frames
 
 pub WhiteRingedFrame(fill_data, white_intensity)
     ' First fill entire frame then override edges with white at given intensity
-    
+
+var
+  long lights[1_196]     'Create an array of 1,196 longs to hold the color values of each LED in 92*13=1196
+
+pub spin_all_but_active(color,power) | ring,i,j,k
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48
+  repeat
+    repeat j from 0 to 91
+      repeat ring from 0 to 11
+        if ring == minute_ring-1 or ring == hour_ring-1
+          next
+        repeat k from 0 to j
+          led(ring,k,int(color,power))
+      update()
+
+    repeat j from 91 to 0
+      repeat ring from 0 to 11
+        if ring == minute_ring-1 or ring == hour_ring-1
+          next
+        led(ring,j,0)
+      update()
+
+pub HourAnimation() | prev_ring
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+  repeat
+    if hour_ring == minute_ring
+      MinuteOnHourAnimation(hour_ring)
+    else
+      PulseWhite(hour_ring)
+      repeat while hour_ring == prev_ring '
+        prev_ring := hour_ring
+
+
+
+pub MinuteAnimation() | prev_ring
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  repeat
+    if (hour_ring <> minute_ring) and (minute_ring <> -1)
+      FiveMinAnimation(minute_ring)
+
+
+pub MinuteOnHourAnimation(ring) | waitbetween
+  waitbetween:=200             '23077 for 5 min timer
+  RingedFrame(ring, @Frame1, 15)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame2, 13)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame3, 11)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame4, 9)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame5, 7)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame6, 5)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame7, 4)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame8, 3)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame9, 4)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame10, 5)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame11, 7)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame12, 9)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame13, 11)
+  waitms(waitbetween)
+  RingedFrame(ring, @Frame14, 13)
+
+pub RingedFrame(ring, customData, whiteIntensity)
+  longmove(@lights[(ring-1)*92], customdata, 92)
+  longfill(@lights[(ring-1)*92], int(white,whiteintensity), 56)
+
+pub spin_bounce(ring,color,power) | i,j,k
+
+  repeat i from 0 to 91
+    repeat k from 0 to i
+      led(ring,i,int(color,power))
+    update()
+    waitus(5)
+
+  repeat j from 0 to 91
+    led(ring,j,0)
+    update()
+    waitus(5)
+
+  repeat k from 0 to 2
+    section(ring,0,91,int(color,power))
+    update()
+    waitms(250)
+    section(ring,0,91,0)
+    update()
+    waitms(250)
+  section(ring,0,91,int(color,power))
+
+
+pub spin_all_but_active_random(power) | ring,i,j,k
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48
+  {longfill(@lights,int(blue,30),1_196)
+  Update()
+  repeat}
+  repeat
+
+    repeat j from 0 to 91
+      repeat ring from 0 to 11
+        if ring == minute_ring-1 or ring == hour_ring-1
+          next
+        repeat k from 0 to j
+          led(ring,k,int(randomcolor(),power))
+      update()
+    repeat ring from 0 to 11
+      if ring == minute_ring-1 or ring == hour_ring-1
+        next
+      repeat j from 0 to 91
+        led(ring,j,0)
+      update()
+      waitus(5)
+      update()
+
+pub spin_all(color,power) | ring,i,j,k
+
+
+  repeat j from 0 to 91
+    repeat ring from 0 to 11
+      repeat k from 0 to j
+        led(ring,k,int(color,power))
+    update()
+
+  repeat ring from 0 to 11
+     repeat j from 0 to 91
+       led(ring,j,0)
+    update()
+    waitus(5)
+    update()
+
+pub spin_down(ring,color)| i
+
+  section(ring,0,91,int(color,125))
+  repeat i from 0 to 91
+    led(ring,i,0)
+    waitus(3260869)    
 
 DAT
 testcolors long {
