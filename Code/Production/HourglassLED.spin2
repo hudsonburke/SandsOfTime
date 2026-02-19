@@ -12,6 +12,7 @@ CON
 
 VAR
     long lights[MEM_SIZE/4] 'Array to hold color data for each LED (4 bytes per LED)
+    byte ring_index 'internal parameter, indicates which ring this LED object is controlling (1-12)
 
 PUB null()
 
@@ -133,6 +134,13 @@ PUB RandomColor() : randcolor | rand,_red,_green,_blue,timer   ''Generates and r
   randcolor:=MakeColor(_red, _green, _blue, 255)
 
 {Animations}
+PUB spiral_in(color, power) | i
+  ' spirals in from the outside in with a specified color and intensity
+  'not really sure what these next two lines are for?
+  'pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  'pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  repeat i from 0 to 91
+    led(ring_index,i,Intensity(color,power))
 
 'old animation code
 pub PulseWhite(wait_time) | i, j
@@ -163,17 +171,18 @@ pub spin_all_but_active(color,power) | ring,i,j,k
   repeat
     repeat j from 0 to 91 'j - index of each led in the ring
       repeat ring from 0 to 11 'ring - index of each ring
-        if ring == minute_ring-1 or ring == hour_ring-1
+        if ring == minute_ring-1 or ring == hour_ring-1 'skip the active rings
           next
-        repeat k from 0 to j
-          led(ring,k,int(color,power))
+        repeat k from 0 to j 'k - index for how many leds to light up in the current ring
+          led(ring,k,Intensity(color,power))
       update()
 
+    ' reverse reverse!
     repeat j from 91 to 0
       repeat ring from 0 to 11
         if ring == minute_ring-1 or ring == hour_ring-1
           next
-        led(ring,j,0)
+        led(ring,j,0) ' turn off
       update()
 
 pub HourAnimation() | prev_ring
@@ -241,13 +250,13 @@ pub RingedFrame(ring, customData, whiteIntensity)
   ' customData: which frame to use for the animation (stored in DAT section)
   ' whiteIntensity: how bright to make the white color for the outer ring
   longmove(@lights[(ring-1)*92], customdata, 92) ' inner 4 rings
-  longfill(@lights[(ring-1)*92], int(white,whiteintensity), 56) ' outer 2 rings white
+  longfill(@lights[(ring-1)*92], Intensity(white,whiteintensity), 56) ' outer 2 rings white
 
 pub spin_bounce(ring,color,power) | i,j,k
 
   repeat i from 0 to 91
     repeat k from 0 to i
-      led(ring,i,int(color,power))
+      led(ring,i,Intensity(color,power))
     update()
     waitus(5)
 
@@ -257,19 +266,19 @@ pub spin_bounce(ring,color,power) | i,j,k
     waitus(5)
 
   repeat k from 0 to 2
-    section(ring,0,91,int(color,power))
+    section(ring,0,91,Intensity(color,power))
     update()
     waitms(250)
     section(ring,0,91,0)
     update()
     waitms(250)
-  section(ring,0,91,int(color,power))
+  section(ring,0,91,Intensity(color,power))
 
 
 pub spin_all_but_active_random(power) | ring,i,j,k
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48
-  {longfill(@lights,int(blue,30),1_196)
+  {longfill(@lights,Intensity(blue,30),1_196)
   Update()
   repeat}
   repeat
@@ -279,7 +288,7 @@ pub spin_all_but_active_random(power) | ring,i,j,k
         if ring == minute_ring-1 or ring == hour_ring-1
           next
         repeat k from 0 to j
-          led(ring,k,int(randomcolor(),power))
+          led(ring,k,Intensity(randomcolor(),power))
       update()
     repeat ring from 0 to 11
       if ring == minute_ring-1 or ring == hour_ring-1
@@ -296,7 +305,7 @@ pub spin_all(color,power) | ring,i,j,k
   repeat j from 0 to 91
     repeat ring from 0 to 11
       repeat k from 0 to j
-        led(ring,k,int(color,power))
+        led(ring,k,Intensity(color,power))
     update()
 
   repeat ring from 0 to 11
@@ -308,7 +317,7 @@ pub spin_all(color,power) | ring,i,j,k
 
 
 pub spin_down(ring,color)| i
-  section(ring,0,91,int(color,125))
+  section(ring,0,91,Intensity(color,125))
   repeat i from 0 to 91
     led(ring,i,0)
     waitus(3260869)    
