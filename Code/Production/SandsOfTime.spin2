@@ -51,7 +51,7 @@ OBJ
   arm_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   arm_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
 
-  Hour1 : "HourglassLED" | '
+  Hour1 : "HourglassLED" | 'LED objects for each hourglass, all have the same pins but are different objects so they can be controlled independently
   Hour2 : "HourglassLED" |
   Hour3 : "HourglassLED" |
   Hour4 : "HourglassLED" |
@@ -64,7 +64,6 @@ OBJ
   Hour11 : "HourglassLED" |
   Hour12 : "HourglassLED" |
   
-
   lcd : "jm_serial"
   pst : "pst_driver"
 
@@ -108,6 +107,7 @@ PUB Main() | minute_i, i, error, hours
       repeat until editing == 0 ' Block until LCD has finished editing
 
     repeat i from 1 to 12
+      ' when 4 min 50 sec has passed, move to the next hourglass
       if (minute +// 5) == 4 && second +>= 50
         ' Top Priority: Check if it's time to flip an hourglass
 
@@ -235,6 +235,8 @@ pub ReadRTClock() | addr
         DS3234.SetTime(second, minute, hour, day, date, month, year) ' TODO: Incorporate the rest of the fields
         editing:=0
       }
+
+
 pub ReadAbsEncoders() | i, value
   'pst.start(9600)
   dirhigh(CLK)
