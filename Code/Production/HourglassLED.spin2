@@ -1,6 +1,6 @@
 CON
 
-    N_LEDS = 93    'Number of LEDs in the strip
+    N_LEDS = 92    'Number of LEDs in the strip
     'Ring 1 - 32
     'Ring 2 - 24
     'Ring 3 - 16
@@ -95,6 +95,22 @@ CON
   indigo         = 75<<8+130                    '%00000000_01001011_10000010
   violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
 
+pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
+  lights[(ring*92)+LEDaddress]:=color
+  'Update()
+
+pub ledgrb(ring,LEDaddress,_green,_red,_blue)             ''Changes GRB values of an LED at a specific address
+  lights[(ring*92)+LEDaddress]:=_green<<16+_red<<8+_blue
+  Update()
+
+pub ledrgb(ring,LEDaddress,_red,_green,_blue)             ''Changes RGB values of an LED at a specific address
+  lights[(ring*92)+LEDaddress]:=_green<<16+_red<<8+_blue
+  Update()
+
+pub ledint(ring,LEDaddress,color,intense)                 ''Changes the color of an LED at a specific address
+  lights[(ring*92)+LEDaddress]:=((((color>>16)*intense)/255)<<16) +((((color>>8 & $FF)*intense)/255)<<8)+(((color & $FF)*intense)/255)
+  Update()
+
 PUB Intensity(color,intense) : newvalue              ''Changes the intensity (0-255) of a color
   intense := 0 #> intense <# 255                     ' Clamp intensity value to be between 0 and 255
   newvalue:=(
@@ -145,8 +161,8 @@ pub spin_all_but_active(color,power) | ring,i,j,k
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48
   repeat
-    repeat j from 0 to 91
-      repeat ring from 0 to 11
+    repeat j from 0 to 91 'j - index of each led in the ring
+      repeat ring from 0 to 11 'ring - index of each ring
         if ring == minute_ring-1 or ring == hour_ring-1
           next
         repeat k from 0 to j
