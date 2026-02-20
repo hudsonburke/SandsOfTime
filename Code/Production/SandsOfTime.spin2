@@ -1,6 +1,8 @@
 CON
   _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
 
+  ' LOOK INTO COGATN FOR INTERRUPT LIKE BEHAVIOR
+
   {Absolute Encoder Constants}
   CS0 = 1    ' Start of encoder chip select pin range
   CSf = 12    ' End of encoder chip select pin range
@@ -8,6 +10,7 @@ CON
   CLK = 0
   DATA = 13
   HourglassEncTolerance = 3 ' In encoder counts
+  HourglassEncResolution = 1024 ' In counts per revolution
 
   {Limit Switch Constants}
   LSRetract = 38
@@ -22,11 +25,23 @@ CON
 
   MainArmEncTolerance = 20
   ExtendEncTolerance = 10
+  WatchdogTolerance = 15
   ' In encoder counts
 
   {Motor Constants}
   numClockPulses = 10
   numBasePeriods = 1000
+
+  InductionDebounceTime = 10 ' ms to wait after detecting induction sensor for it to stabilize and be read again
+  
+  {Control Constants}
+  Extend_Kp = 0
+  Extend_Ki = 0
+  Extend_Kd = 0
+
+  MainArm_Kp = 9
+  MainArm_Ki = 0
+  MainArm_Kd = 0
 
   {LCD Constants}
   #20, JoyUp, JoyDown, JoyLeft, JoyRight, JoyButton
@@ -35,7 +50,7 @@ CON
 
 VAR
   {Stacks for Cogs}
-  long Stack2[100], Stack3[100], Stack4[100], Stack5[100], Stack6[100], Stack7[100], Stack8[100]
+  long Stack2[512], Stack3[512], Stack4[512], Stack5[512], Stack6[512], Stack7[512], Stack8[512]
 
   {Flags}
   byte homed, editing
@@ -71,36 +86,33 @@ OBJ
 
 PUB Main() | minute_i, i, error, hours
   {Begin Setup}
-  hours = [Hour1, Hour2, Hour3, Hour4, Hour5, Hour6, Hour7, Hour8, Hour9, Hour10, Hour11, Hour12]
-  cogspin(2, ReadAbsEncoders(), @Stack2)
+  hours = [Hour1, Hour2, Hour3, Hour4, Hour5, Hour6, Hour7, Hour8, Hour9, Hour10, Hour11, Hour12]  
 
-  cogspin(3, spin_all_but_active(blue, 30), @Stack3)
+
+  {Initialize non-moving parts}
+  DS3234.InitPins()
+  cogspin(2, ReadRTClock(), @Stack2)
+  cogspin(3, ReadAbsEncoders(), @Stack3)
+  ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
+  ' TODO: How to separate hardware initialization from setting the initial conditions of the system? Should they even be together? Esp. with cogs
+  repeat i from 1 to 12
+    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0
+
   pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
+  cogspin(4, ReadMainArmEncoder(), @Stack4)
+
+  {Now initialize moving parts to get them in a known state}
   main_arm.InitPins(numClockPulses, numBasePeriods)
   arm_spin.InitPins(numClockPulses, numBasePeriods)
   arm_extend.InitPins(numClockPulses, numBasePeriods)
 
+  {Home}
   Retract()
   homed:=0
-  cogspin(4, ReadMainArmEncoder(), @Stack4)
   repeat until homed == 1
   waitms(500)
   SetMainArmPos(0)
 
-  editing:=0
-  cogspin(5, ReadRTClock(), @Stack5)
-  waitms(50) ' wait for the cog to start up and set the time variables
-
-  ' Set the initial led rings to light up based on the current time
-  hour_ring:= hour
-  minute_ring:=minute/5
-  if minute_ring == 0
-    minute_ring := 12
-  cogspin(6, HourAnimation(), @Stack6)
-  cogspin(7, MinuteAnimation(), @Stack7)
-  ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
-  repeat i from 1 to 12
-    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0
   {End Setup}
 
   repeat
@@ -108,10 +120,9 @@ PUB Main() | minute_i, i, error, hours
       repeat until editing == 0 ' Block until LCD has finished editing
 
     repeat i from 1 to 12
+      ' TODO: Make this an interrupt?
       if (minute +// 5) == 4 && second +>= 50
         ' Top Priority: Check if it's time to flip an hourglass
-
-
         minute_i := minute/5 + 1 ' since this is not floating point divide, should round down (i.e. 4/5 = 0) so the indices should line up
         '***This could be a function?
         Retract()
@@ -129,7 +140,7 @@ PUB Main() | minute_i, i, error, hours
       else
         ' 2nd Priority: Hourglass Watchdog
         error := CalculateAbsError(EncCurPos[i], EncSetPoint[i]) ' Find the error between each hg setpoint and current position
-        if abs error > 15 ' an hourglass is out of position
+        if abs error > WatchdogTolerance ' an hourglass is out of position
           Retract()
           SetMainArmPos(hour_pos[i])
           arm_spin.DriveForward(1000)
@@ -141,6 +152,23 @@ PUB Main() | minute_i, i, error, hours
     SetMainArmPos(hour_pos[hour])
     ExtendArm(hour_extension[hour]/2)
 
+pub Watchdog() | i, error
+  repeat
+    repeat i from 1 to 12
+      error := CalculateAbsError(EncCurPos[i], EncSetPoint[i]) ' Find the error between each hg setpoint and current position
+      if abs error > WatchdogTolerance ' an hourglass is out of position
+        Retract()
+        SetMainArmPos(hour_pos[i])
+        arm_spin.DriveForward(1000)
+        ExtendArm(hour_extension[i])
+        RotateHourglass(i, EncSetPoint[i])
+        Retract()
+
+pub SwapAbsEncoder(i) 
+  if abs (512 - EncCurPos[i]) < 256
+    EncSetPoint[i] := 512
+  else
+    EncSetPoint[i] := 0
 
 {{Read clock and handle LCD}}
 pub ReadRTClock() | addr
@@ -325,13 +353,15 @@ pub ReadMainArmEncoder()
     ' Drive clockwise until it hits the induction sensor
     main_arm.DriveForward(800)
     repeat until pinr(IndSensor) == 0
+      ' waitms(InductionDebounceTime) ' Debounce and reduce noise
+      ' if pinr(IndSensor) == 0
     main_arm.Stop()
   ' Start the quadrature encoder
   pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   homed:=1
   repeat
     if pinr(IndSensor)==0
-      waitms(10) ' Debounce and reduce noise
+      waitms(InductionDebounceTime) ' Debounce and reduce noise
       if pinr(IndSensor)==0
         dirlow(ArmEncBotPin) ' Should reset the count on the pin
         dirhigh(ArmEncBotPin)
@@ -371,152 +401,3 @@ hour_pos long 0, 633, 1364, 1994, 2702, 3310, 4017, 4804, 5398, 6080, 6780, 7456
 ' how far arm needs to extend to reach in quadrature encoder counts (starting and ending at hour 12)
  '                    12     1     2     3     4     5     6     7     8     9    10    11    12
 hour_extension long 7027, 7106, 7231, 7076, 7023, 6828, 6772, 6770, 7088, 6965, 7048, 7031, 7027
-
-
-var
-  long lights[1_196]     'Create an array of 1,196 longs to hold the color values of each LED in 92*13=1196
-
-pub spin_all_but_active(color,power) | ring,i,j,k
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48
-  repeat
-    repeat j from 0 to 91
-      repeat ring from 0 to 11
-        if ring == minute_ring-1 or ring == hour_ring-1
-          next
-        repeat k from 0 to j
-          led(ring,k,int(color,power))
-      update()
-
-    repeat j from 91 to 0
-      repeat ring from 0 to 11
-        if ring == minute_ring-1 or ring == hour_ring-1
-          next
-        led(ring,j,0)
-      update()
-
-pub HourAnimation() | prev_ring
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-
-  repeat
-    if hour_ring == minute_ring
-      MinuteOnHourAnimation(hour_ring)
-    else
-      PulseWhite(hour_ring)
-      repeat while hour_ring == prev_ring '
-        prev_ring := hour_ring
-
-
-
-pub MinuteAnimation() | prev_ring
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-  repeat
-    if (hour_ring <> minute_ring) and (minute_ring <> -1)
-      FiveMinAnimation(minute_ring)
-
-
-pub MinuteOnHourAnimation(ring) | waitbetween
-  waitbetween:=200             '23077 for 5 min timer
-  RingedFrame(ring, @Frame1, 15)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame2, 13)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame3, 11)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame4, 9)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame5, 7)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame6, 5)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame7, 4)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame8, 3)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame9, 4)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame10, 5)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame11, 7)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame12, 9)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame13, 11)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame14, 13)
-
-pub RingedFrame(ring, customData, whiteIntensity)
-  longmove(@lights[(ring-1)*92], customdata, 92)
-  longfill(@lights[(ring-1)*92], int(white,whiteintensity), 56)
-
-pub spin_bounce(ring,color,power) | i,j,k
-
-  repeat i from 0 to 91
-    repeat k from 0 to i
-      led(ring,i,int(color,power))
-    update()
-    waitus(5)
-
-  repeat j from 0 to 91
-    led(ring,j,0)
-    update()
-    waitus(5)
-
-  repeat k from 0 to 2
-    section(ring,0,91,int(color,power))
-    update()
-    waitms(250)
-    section(ring,0,91,0)
-    update()
-    waitms(250)
-  section(ring,0,91,int(color,power))
-
-
-pub spin_all_but_active_random(power) | ring,i,j,k
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48
-  {longfill(@lights,int(blue,30),1_196)
-  Update()
-  repeat}
-  repeat
-
-    repeat j from 0 to 91
-      repeat ring from 0 to 11
-        if ring == minute_ring-1 or ring == hour_ring-1
-          next
-        repeat k from 0 to j
-          led(ring,k,int(randomcolor(),power))
-      update()
-    repeat ring from 0 to 11
-      if ring == minute_ring-1 or ring == hour_ring-1
-        next
-      repeat j from 0 to 91
-        led(ring,j,0)
-      update()
-      waitus(5)
-      update()
-
-pub spin_all(color,power) | ring,i,j,k
-
-
-  repeat j from 0 to 91
-    repeat ring from 0 to 11
-      repeat k from 0 to j
-        led(ring,k,int(color,power))
-    update()
-
-  repeat ring from 0 to 11
-     repeat j from 0 to 91
-       led(ring,j,0)
-    update()
-    waitus(5)
-    update()
-
-pub spin_down(ring,color)| i
-
-  section(ring,0,91,int(color,125))
-  repeat i from 0 to 91
-    led(ring,i,0)
-    waitus(3260869)
