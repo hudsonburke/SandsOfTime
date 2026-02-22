@@ -12,7 +12,8 @@ CON
 
 VAR
     byte ring_index 'internal parameter, indicates which ring this LED object is controlling (1-12)
-
+    byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
+    byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
 OBJ
   WS2812B : "WS2812B" 'LED driver object (for controlling the WS2812B LED strips)
 
@@ -45,6 +46,17 @@ pub led(ring,LEDaddress,color)                            ''Changes the color of
   'lights[(ring*92)+LEDaddress]:=color
   'Update()
 
+PUB setMinuteRing(ring)
+  minute_ring := ring
+
+PUB setHourRing(ring)
+  hour_ring := ring
+
+PUB GetMinuteRing() : ring
+  ring := minute_ring
+
+PUB GetHourRing() : ring
+  ring := hour_ring
 
 PUB Intensity(color,intense) : newvalue              ''Changes the intensity (0-255) of a color
   intense := 0 #> intense <# 255                     ' Clamp intensity value to be between 0 and 255
