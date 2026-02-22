@@ -50,16 +50,25 @@ EndAddr   long 0                 'Stores the final Hub RAM address of "lights" a
 
 PUB led(LEDaddress,color)                            ''Changes the color of an LED at a specific address
   lights[LEDaddress]:=color
-  Update()
+  'Update()
 
 pub ledgrb(ring,LEDaddress,_green,_red,_blue)             ''Changes GRB values of an LED at a specific address
   lights[(ring*92)+LEDaddress]:=_green<<16+_red<<8+_blue
-  Update()
+  'Update()
 
 pub ledrgb(ring,LEDaddress,_red,_green,_blue)             ''Changes RGB values of an LED at a specific address
   lights[(ring*92)+LEDaddress]:=_green<<16+_red<<8+_blue
-  Update()
+  'Update()
 
 pub ledint(ring,LEDaddress,color,intense)                 ''Changes the color of an LED at a specific address
   lights[(ring*92)+LEDaddress]:=((((color>>16)*intense)/255)<<16) +((((color>>8 & $FF)*intense)/255)<<8)+(((color & $FF)*intense)/255)
-  Update()
+  'Update()
+
+PUB Clear()
+    longfill(@MEM_START, off, MEM_SIZE)
+
+PUB Set(LEDs, color)
+    longmove(@lights[LEDs], @color, LEDs)
+
+PUB GetAddress(LEDnumber) : address
+    address := MEM_START + (LEDnumber * 4)

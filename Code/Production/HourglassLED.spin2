@@ -1,5 +1,5 @@
 CON
-
+    'TODO: MEM stuff in Hourglass or WS2812B? may need to rearrange functions
     N_LEDS = 92    'Number of LEDs in the strip
     'Ring 1 - 32
     'Ring 2 - 24
@@ -13,18 +13,9 @@ CON
 VAR
     byte ring_index 'internal parameter, indicates which ring this LED object is controlling (1-12)
 
-PUB null()
+OBJ
+  WS2812B : "WS2812B" 'LED driver object (for controlling the WS2812B LED strips)
 
-PUB Init()
-
-PUB Clear()
-    longfill(@MEM_START, off, MEM_SIZE)
-
-PUB Set(LEDs, color)
-    longmove(@lights[LEDs], @color, LEDs)
-
-PUB GetAddress(LEDnumber) : address
-    address := MEM_START + (LEDnumber * 4)
 
 CON
 
@@ -49,7 +40,9 @@ CON
   violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
-  lights[(ring*92)+LEDaddress]:=color
+  'TODO: make sure ring-1 is correct
+  WS2812B.led((ring-1)*92+LEDaddress,color) 'Calculate the correct address for the LED based on its ring and position, and set it to the specified color
+  'lights[(ring*92)+LEDaddress]:=color
   'Update()
 
 
@@ -75,13 +68,16 @@ PUB RandomColor() : randcolor | rand,_red,_green,_blue,timer   ''Generates and r
   randcolor:=MakeColor(_red, _green, _blue, 255)
 
 {Animations}
-PUB spiral_in(color, power) | i
-  ' spirals in from the outside in with a specified color and intensity
+PUB spiral_in(color, power) | i, ring_num, intensity_val
+  'spirals in from the outside in with a specified color and intensity
   'not really sure what these next two lines are for?
   'pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   'pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  intensity_val := Intensity(color,power)
   repeat i from 0 to 91
-    led(ring_index,i,Intensity(color,power))
+    repeat ring_num from 1 to 12
+      led(ring_num,i,intensity_val)
+    led(ring_index,i,intensity_val)
     update()
     'waitus(5) 
 
