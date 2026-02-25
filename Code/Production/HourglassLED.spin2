@@ -41,10 +41,7 @@ CON
   violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
-  'TODO: make sure ring-1 is correct
   WS2812B.led((ring-1)*92+LEDaddress,color) 'Calculate the correct address for the LED based on its ring and position, and set it to the specified color
-  'lights[(ring*92)+LEDaddress]:=color
-  'Update()
 
 PUB setMinuteRing(ring)
   minute_ring := ring
@@ -66,21 +63,8 @@ PUB Intensity(color,intense) : newvalue              ''Changes the intensity (0-
     (((color & $FF)*intense)/255
     )
 
-PUB MakeColor(_red, _green, _blue, _intensity) : colorvalue  ''Creates a color value from red, green, and blue components (0-255)
-  colorvalue := (_green<<16) + (_red<<8) + _blue
-  colorvalue := Intensity(colorvalue, _intensity)
-
-PUB RandomColor() : randcolor | rand,_red,_green,_blue,timer   ''Generates and returns a random color value
-  rand:=getrnd()
-  _red:=rand>>24
-  rand:=getrnd()
-  _green:=rand>>24
-  rand:=getrnd()
-  _blue:=rand>>24
-  randcolor:=MakeColor(_red, _green, _blue, 255)
-
 {Animations}
-PUB idle_rings() | i_forward, ring_num
+PUB idle_rings() | i_forward, i_backward, ring_num
   'spirals non-active rings in and out
   'before minute - light blue
   'after minute - dark blue
@@ -90,14 +74,22 @@ PUB idle_rings() | i_forward, ring_num
   
   repeat i_forward from 0 to 91
     repeat ring_num from 1 to 12
-      if ring_num == minute_ring or ring_num == hour_ring
+      if ring_num == minute_ring and ring_num == hour_ring
         next
       if ring_num < minute_ring
         led(ring_num,i_forward,Intensity(cyan,30))
+      else if ring_num == minute_ring
+        led(ring_num,i_forward,Intensity(cyan,100))
       else
         led(ring_num,i_forward,Intensity(blue,30))
     update()
-    'waitus(5)
+
+  repeat i_backward from 91 to 0
+    repeat ring_num from 1 to 12
+      if ring_num == minute_ring and ring_num == hour_ring
+        next
+      led(ring_num,i_backward,0)
+    update()
 
 
 'old animation code
@@ -121,27 +113,6 @@ pub FiveMinAnimation(wait_time) | i, frames
 
 var
   long lights[1_196]     'Create an array of 1,196 longs to hold the color values of each LED in 92*13=1196
-
-pub spin_all_but_active(color,power) | ring,i,j,k
-  ' spin rings in animation, but skip the active rings (hour and minute)
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48
-  repeat
-    repeat j from 0 to 91 'j - index of each led in the ring
-      repeat ring from 0 to 11 'ring - index of each ring
-        if ring == minute_ring-1 or ring == hour_ring-1 'skip the active rings
-          next
-        repeat k from 0 to j 'k - index for how many leds to light up in the current ring
-          led(ring,k,Intensity(color,power))
-      update()
-
-    ' reverse reverse!
-    repeat j from 91 to 0
-      repeat ring from 0 to 11
-        if ring == minute_ring-1 or ring == hour_ring-1
-          next
-        led(ring,j,0) ' turn off
-      update()
 
 pub HourAnimation() | prev_ring
   ' animation for ring representing the hour
@@ -232,53 +203,6 @@ pub spin_bounce(ring,color,power) | i,j,k
     waitms(250)
   section(ring,0,91,Intensity(color,power))
 
-
-pub spin_all_but_active_random(power) | ring,i,j,k
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48
-  {longfill(@lights,Intensity(blue,30),1_196)
-  Update()
-  repeat}
-  repeat
-
-    repeat j from 0 to 91
-      repeat ring from 0 to 11
-        if ring == minute_ring-1 or ring == hour_ring-1
-          next
-        repeat k from 0 to j
-          led(ring,k,Intensity(randomcolor(),power))
-      update()
-    repeat ring from 0 to 11
-      if ring == minute_ring-1 or ring == hour_ring-1
-        next
-      repeat j from 0 to 91
-        led(ring,j,0)
-      update()
-      waitus(5)
-      update()
-
-pub spin_all(color,power) | ring,i,j,k
-
-
-  repeat j from 0 to 91
-    repeat ring from 0 to 11
-      repeat k from 0 to j
-        led(ring,k,Intensity(color,power))
-    update()
-
-  repeat ring from 0 to 11
-     repeat j from 0 to 91
-       led(ring,j,0)
-    update()
-    waitus(5)
-    update()
-
-
-pub spin_down(ring,color)| i
-  section(ring,0,91,Intensity(color,125))
-  repeat i from 0 to 91
-    led(ring,i,0)
-    waitus(3260869)    
 
 DAT
   testcolors long {
