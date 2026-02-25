@@ -63,30 +63,47 @@ PUB Intensity(color,intense) : newvalue              ''Changes the intensity (0-
     (((color & $FF)*intense)/255
     )
 
+CON '12 blues for ring colors
+  blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
+  blue_1 = 232<<16+232<<8+255           '%11101000_11101000_11111111
+  blue_2 = 209<<16+209<<8+255           '%11010001_11010001_11111111
+  blue_3 = 186<<16+186<<8+255           '%10111010_10111010_11111111
+  blue_4 = 163<<16+163<<8+255           '%10100011_10100011_11111111
+  blue_5 = 140<<16+140<<8+255           '%10001100_10001100_11111111
+  blue_6 = 117<<16+117<<8+255           '%01110101_01110101_11111111
+  blue_7 = 94<<16+94<<8+255             '%01011110_01011110_11111111
+  blue_8 = 71<<16+71<<8+255             '%01000111_01000111_11111111
+  blue_9 = 48<<16+58<<16+255
+  blue_10 = 25<<16+25<<8+255
+  blue_11 = 255                          '%00000000_00000000_11111111
+
+  blues = [blue_0, blue_1, blue_2, blue_3, blue_4, blue_5,
+           blue_6, blue_7, blue_8, blue_9, blue_10, blue_11]
+                  '
 {Animations}
-PUB idle_rings() | i_forward, i_backward, ring_num
+PUB ring gradient() | i_forward, i_backward, ring_num
   'spirals non-active rings in and out
   'before minute - light blue
   'after minute - dark blue
   'not really sure what these next two lines are for?
-  'pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  'pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
   
   repeat i_forward from 0 to 91
-    repeat ring_num from 1 to 12
-      if ring_num == minute_ring and ring_num == hour_ring
+    repeat ring_num for 0 to 12
+      if ring_num == hour_ring          'skip hour ring
         next
-      if ring_num < minute_ring
-        led(ring_num,i_forward,Intensity(cyan,30))
-      else if ring_num == minute_ring
-        led(ring_num,i_forward,Intensity(cyan,100))
+      else if ring_num > minute_ring    'skip other rings that are after the minute
+        next
+      else if ring_num == minute_ring   'double brightness of minute ring
+        led(ring_num, i_forward, Intensity[blues[ring_num], 255])
       else
-        led(ring_num,i_forward,Intensity(blue,30))
+        led(ring_num, i_forward, Intensity(blues[ring_num], 127))   
     update()
 
   repeat i_backward from 91 to 0
     repeat ring_num from 1 to 12
-      if ring_num == minute_ring and ring_num == hour_ring
+      if ring_num == hour_ring
         next
       led(ring_num,i_backward,0)
     update()
