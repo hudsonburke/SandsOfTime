@@ -1,3 +1,14 @@
+{
+Cog0
+Cog1
+Cog2 - absolute encoders
+Cog3 - {used to spin inactive rings; now combined with minute animation}
+Cog4 - arm encoder
+Cog5 - rtc clock
+Cog6 - hour animation
+Cog7 - minute animation
+}
+
 CON
   _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
 
@@ -51,18 +62,7 @@ OBJ
   arm_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   arm_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
 
-  Hour1 : "HourglassLED" | 'LED objects for each hourglass, all have the same pins but are different objects so they can be controlled independently
-  Hour2 : "HourglassLED" |
-  Hour3 : "HourglassLED" |
-  Hour4 : "HourglassLED" |
-  Hour5 : "HourglassLED" |
-  Hour6 : "HourglassLED" |
-  Hour7 : "HourglassLED" |
-  Hour8 : "HourglassLED" |
-  Hour9 : "HourglassLED" |
-  Hour10 : "HourglassLED" |
-  Hour11 : "HourglassLED" |
-  Hour12 : "HourglassLED" |
+  leds : "HourglassLED"
   
   lcd : "jm_serial"
   pst : "pst_driver"
@@ -70,10 +70,8 @@ OBJ
 
 PUB Main() | minute_i, i, error, hours
   {Begin Setup}
-  hours = [Hour1, Hour2, Hour3, Hour4, Hour5, Hour6, Hour7, Hour8, Hour9, Hour10, Hour11, Hour12]
   cogspin(2, ReadAbsEncoders(), @Stack2)
 
-  cogspin(3, spin_all_but_active(blue, 30), @Stack3)
   pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   main_arm.InitPins(numClockPulses, numBasePeriods)
   arm_spin.InitPins(numClockPulses, numBasePeriods)
@@ -92,11 +90,14 @@ PUB Main() | minute_i, i, error, hours
 
   ' Set the initial led rings to light up based on the current time
   hour_ring:= hour
+  leds.setHourRing(hour_ring)
   minute_ring:=minute/5
   if minute_ring == 0
     minute_ring := 12
-  cogspin(6, HourAnimation(), @Stack6)
-  cogspin(7, MinuteAnimation(), @Stack7)
+  leds.setMinuteRing(minute_ring)
+  cogspin(6, leds.HourAnimation(), @Stack6)
+  cogspin(7, leds.MinuteAnimation(), @Stack7)
+
   ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
   repeat i from 1 to 12
     EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0
@@ -113,6 +114,7 @@ PUB Main() | minute_i, i, error, hours
 
 
         minute_i := minute/5 + 1 ' since this is not floating point divide, should round down (i.e. 4/5 = 0) so the indices should line up
+
         '***This could be a function?
         Retract()
         SetMainArmPos(hour_pos[minute_i])
@@ -122,7 +124,7 @@ PUB Main() | minute_i, i, error, hours
         RotateHourglass(minute_i, abs (512 - EncCurPos[minute_i]) < 256 ? 0 : 512) ' Should swap between 0 and 512
 
         ' Start minute animation
-        minute_ring:=minute_i ' this would have to be outside of the function
+        leds.setMinuteRing(minute_i)
 
         Retract()
         '***
@@ -137,7 +139,7 @@ PUB Main() | minute_i, i, error, hours
           RotateHourglass(i, EncSetPoint[i])
           Retract()
     ' Lowest priority: use the arm to point to the hour
-    hour_ring:=hour
+    leds.setHourRing(hour)
     SetMainArmPos(hour_pos[hour])
     ExtendArm(hour_extension[hour]/2)
 

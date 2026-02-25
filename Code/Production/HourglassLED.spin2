@@ -124,24 +124,25 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
   
-  repeat i_forward from 0 to 91
-    repeat ring_num for 0 to 12
-      if ring_num == hour_ring          'skip hour ring
-        next
-      else if ring_num > minute_ring    'skip other rings that are after the minute
-        next
-      else if ring_num == minute_ring   'double brightness of minute ring
-        led(ring_num, i_forward, Intensity[blues[ring_num], 255])
-      else
-        led(ring_num, i_forward, Intensity(blues[ring_num], 127))   
-    update()
+  repeat
+    repeat i_forward from 0 to 91
+      repeat ring_num for 0 to 12
+        if ring_num == hour_ring          'skip hour ring
+          next
+        else if ring_num > minute_ring    'skip other rings that are after the minute
+          next
+        else if ring_num == minute_ring   'double brightness of minute ring
+          led(ring_num, i_forward, Intensity[blues[ring_num], 255])
+        else
+          led(ring_num, i_forward, Intensity(blues[ring_num], 127))   
+      update()
 
-  repeat i_backward from 91 to 0
-    repeat ring_num from 1 to 12
-      if ring_num == hour_ring
-        next
-      led(ring_num,i_backward,0)
-    update()
+    repeat i_backward from 91 to 0
+      repeat ring_num from 1 to 12
+        if ring_num == hour_ring
+          next
+        led(ring_num,i_backward,0)
+      update()
 
 DAT 'arranging the circle into rows
   layer1   long  9,10,11,12,13,14,15
