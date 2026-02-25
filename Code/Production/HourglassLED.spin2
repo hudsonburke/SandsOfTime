@@ -1,16 +1,12 @@
 CON
     RINGS = 12
     LEDS_PER_RING = 92
-    PIN_NUM = 
 
 VAR
     long lights[RINGS * LEDS_PER_RING]
 
     byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
     byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
-OBJ
-  ws : "WS2812B" 'LED driver object (for controlling the WS2812B LED strips)
-
 
 CON
  'Predefined colors                               green      red      blue
@@ -33,7 +29,7 @@ CON
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
   lights[(ring*92)+LEDaddress]:=color
-  
+
 PUB Update() 'General-purpose Registers Used: pr0=address of "lights" variable, pr1=pin (these are passed to PASM from the Spin2 code)
   pinl((pr1+12)..pr1)            'Send Low reset signal to WS2812B LEDs
   waitus(300)                    'Reset signal width is 300us
@@ -119,7 +115,7 @@ DAT
   blues long blue_0, blue_1, blue_2, blue_3, blue_4, blue_5, blue_6, blue_7, blue_8, blue_9, blue_10, blue_11
                   '
 {Animations}
-PUB ring_gradient() | i_forward, i_backward, ring_num
+PUB MinuteAnimation() | i_forward, i_backward, ring_num
   'spirals non-active rings in and out
   'before minute - light blue
   'after minute - dark blue
@@ -207,6 +203,15 @@ PUB change_color_down(ring, color) | i
   update()
   waitms(50)
 
+DAT
+  hour_color_cycle long red orange yellow green blue purple cyan magenta white pink
+
+PUB HourAnimation_general(ring_num) | i
+  repeat i from 0 to 9
+    change_color_down(ring_num, hour_color_cycle[i])
+    'todo quit early if hour (or minute) changes
+
+
 pub HourAnimation() | prev_ring
   ' animation for ring representing the hour
   ' either pulse white 
@@ -218,84 +223,12 @@ pub HourAnimation() | prev_ring
     if hour_ring == minute_ring
       MinuteOnHourAnimation(hour_ring)
     else
-      PulseWhite(hour_ring)
-      repeat while hour_ring == prev_ring '
-        prev_ring := hour_ring
+      HourAnimation_general(hour_ring)
 
-
-
-pub MinuteAnimation() | prev_ring
-  ' minute ring animation
-  ' lasts five minutes
-  ' unless minute and hour are the same; separate animation controlled by HourAnimation()
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-  repeat
-    if (hour_ring <> minute_ring) and (minute_ring <> -1)
-      FiveMinAnimation(minute_ring)
 
 
 pub MinuteOnHourAnimation(ring) | waitbetween
-  ' pulse outer ring
-  ' innter ring does five minute animation
-  waitbetween:=200             '23077 for 5 min timer
-  RingedFrame(ring, @Frame1, 15)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame2, 13)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame3, 11)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame4, 9)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame5, 7)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame6, 5)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame7, 4)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame8, 3)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame9, 4)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame10, 5)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame11, 7)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame12, 9)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame13, 11)
-  waitms(waitbetween)
-  RingedFrame(ring, @Frame14, 13)
-
-pub RingedFrame(ring, customData, whiteIntensity)
-  ' ring: which ring to animate (1-12)
-  ' customData: which frame to use for the animation (stored in DAT section)
-  ' whiteIntensity: how bright to make the white color for the outer ring
-  longmove(@lights[(ring-1)*92], customdata, 92) ' inner 4 rings
-  longfill(@lights[(ring-1)*92], Intensity(white,whiteintensity), 56) ' outer 2 rings white
-
-pub spin_bounce(ring,color,power) | i,j,k
-
-  repeat i from 0 to 91
-    repeat k from 0 to i
-      led(ring,i,Intensity(color,power))
-    update()
-    waitus(5)
-
-  repeat j from 0 to 91
-    led(ring,j,0)
-    update()
-    waitus(5)
-
-  repeat k from 0 to 2
-    section(ring,0,91,Intensity(color,power))
-    update()
-    waitms(250)
-    section(ring,0,91,0)
-    update()
-    waitms(250)
-  section(ring,0,91,Intensity(color,power))
-
+  'todo
 
 DAT
   testcolors long {
