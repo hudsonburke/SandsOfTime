@@ -1,27 +1,18 @@
 CON
-    'TODO: MEM stuff in Hourglass or WS2812B? may need to rearrange functions
-    N_LEDS = 92    'Number of LEDs in the strip
-    'Ring 1 - 32
-    'Ring 2 - 24
-    'Ring 3 - 16
-    'Ring 4 - 12
-    'Ring 5 - 8
-    MEM_START = 0x0000
-    MEM_SIZE = N_LEDS * 4  'Each LED uses 4 bytes (32 bits) of color data (G,R,B + unused byte)
-
+    RINGS = 12
+    LEDS_PER_RING = 92
+    PIN_NUM = 
 
 VAR
-    byte ring_index 'internal parameter, indicates which ring this LED object is controlling (1-12)
+    long lights[RINGS * LEDS_PER_RING]
+
     byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
     byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
 OBJ
-  WS2812B : "WS2812B" 'LED driver object (for controlling the WS2812B LED strips)
+  ws : "WS2812B" 'LED driver object (for controlling the WS2812B LED strips)
 
 
 CON
-
-  maxaddress = 1_196             'For an 8x8 array, LEDs are addressed from 0-63 (increase this value if using arrays or strips with more LEDs)
-
  'Predefined colors                               green      red      blue
   off            = 0                            '%00000000_00000000_00000000
   red            = 255<<8                       '%00000000_11111111_00000000
@@ -41,7 +32,54 @@ CON
   violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
-  WS2812B.led((ring-1)*92+LEDaddress,color) 'Calculate the correct address for the LED based on its ring and position, and set it to the specified color
+  lights[(ring*92)+LEDaddress]:=color
+  
+PUB Update() 'General-purpose Registers Used: pr0=address of "lights" variable, pr1=pin (these are passed to PASM from the Spin2 code)
+  pinl((pr1+12)..pr1)            'Send Low reset signal to WS2812B LEDs
+  waitus(300)                    'Reset signal width is 300us
+
+          org                    'Jump into inline Propeller 2 Assembly Code (running at ~6.67ns per line)
+          mov counter,#0         'Reset counter to 0
+          mov outputpin,pr1      'Start with 1st output pin
+          mov index,pr0          'Copy Hub RAM address of start of "lights" array to index variable
+          mov EndAddr,pr0        'Copy Hub RAM address of start of "lights" array to EndAddr variable
+Loop0     add EndAddr,#368       'Add 92 to EndAddr variable to get the last/end address of this section of the "lights" array
+
+Loop1     rdlong ledcolor,index  'Load new long of color data, output 24 bits to LED matrix
+          mov bit,#23            'Reset bit index pointer to 23
+Loop2     call #OutputBit        'Read and output bits 23 through 1
+          djnz bit, #Loop2       'Decrement bit index by 1, and if it is not zero, jump back up to "Loop2" line
+          call #OutputBit        'Read and output the last bit (bit zero) as well
+
+          add index,#4           'Move on to next long of data (4 bytes) representing the next LED in the "lights" array
+          cmp index,EndAddr  wz  'Check to see if index has reached end address, write Z flag if it has
+    if_nz jmp #Loop1             'If index is not zero, jump back up to "Loop1" line to grab another long of LED data
+
+          add counter,#1         'Add one to the counter
+          add outputpin,#1       'Add one to the output pin (stepping up from Pins 47-59)
+          cmp counter,#12  wz    'Check to see if counter has reached 12, write Z flag if it has
+    if_nz jmp #Loop0
+
+OutputBit testb ledcolor,bit wz  'Test bit from color data long, set Z flag to bit's state
+          drvh outputpin               'Drive output data pin High (start with pin on)
+    'If bit is High, send a One pulse signal (800ns High, 800ns Low)
+    if_z  waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238) (See WS2812B datasheet version 5)
+    if_z  drvl outputpin              'Drive output data pin Low
+    if_z  waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238)
+    'If bit is Low, send a Zero pulse signal (200ns High, 800ns Low)
+    if_nz waitx #88              'Wait for 300ns  (300ns/3.33ns=90, 90-2=88)
+    if_nz drvl outputpin               'Drive output data pin Low
+    if_nz waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238) (See WS2812B datasheet)
+          ret                    'Return from OutputBit subroutine
+
+counter   long 0                 'Use to store the counter value that counts which section of lights are being worked with
+index     long 0                 'Use as an index to specify LED number in the "lights" array matrix 0-63
+outputpin long 0                 'Keeps track of the output pin
+bit       long 0                 'Keeps track of which bit in the color data is being read and transmitted
+ledcolor  long 0                 'Stores an LED's color data from "lights" array in Hub RAM
+StartAddr long 0                 'Stores the starting Hub RAM address of "lights" array (for a set of 93 lights)
+EndAddr   long 0                 'Stores the final Hub RAM address of "lights" array (for a set of 93 lights)
+          end                    'End in-line assembly program
 
 PUB setMinuteRing(ring)
   minute_ring := ring
@@ -77,15 +115,16 @@ CON '12 blues for ring colors
   blue_10 = 25<<16+25<<8+255
   blue_11 = 255                          '%00000000_00000000_11111111
 
-  blues = [blue_0, blue_1, blue_2, blue_3, blue_4, blue_5,
-           blue_6, blue_7, blue_8, blue_9, blue_10, blue_11]
+DAT
+  blues long blue_0, blue_1, blue_2, blue_3, blue_4, blue_5, blue_6, blue_7, blue_8, blue_9, blue_10, blue_11
                   '
 {Animations}
-PUB ring gradient() | i_forward, i_backward, ring_num
+PUB ring_gradient() | i_forward, i_backward, ring_num
   'spirals non-active rings in and out
   'before minute - light blue
   'after minute - dark blue
   'not really sure what these next two lines are for?
+  'todo: lights is an array from ws2812b driver
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
   
@@ -167,22 +206,6 @@ PUB change_color_down(ring, color) | i
     led(ring, layer11[i], color)
   update()
   waitms(50)
-
-
-
-'old animation code
-
-pub FiveMinAnimation(wait_time) | i, frames
-  'animates using preset frames (in DAT section) for active minute ring
-  wait_time:=23077             '23077 for 5 min timer
-  frames = [@Frame1, @Frame2, @Frame3, @Frame4, @Frame5, @Frame6, @Frame7, @Frame8, @Frame9, @Frame10, @Frame11, @Frame12, @Frame13, @Frame14]
-  repeat i from 1 to 14
-    longfill(@lights[MEM_START],@frames[i-1],N_LEDS)
-    waitms(wait_time)
-
-
-var
-  long lights[1_196]     'Create an array of 1,196 longs to hold the color values of each LED in 92*13=1196
 
 pub HourAnimation() | prev_ring
   ' animation for ring representing the hour
