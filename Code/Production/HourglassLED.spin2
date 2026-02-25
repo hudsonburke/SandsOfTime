@@ -80,18 +80,25 @@ PUB RandomColor() : randcolor | rand,_red,_green,_blue,timer   ''Generates and r
   randcolor:=MakeColor(_red, _green, _blue, 255)
 
 {Animations}
-PUB spiral_in(color, power) | i, ring_num, intensity_val
-  'spirals in from the outside in with a specified color and intensity
+PUB idle_rings() | i_forward, ring_num
+  'spirals non-active rings in and out
+  'before minute - light blue
+  'after minute - dark blue
   'not really sure what these next two lines are for?
   'pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   'pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-  intensity_val := Intensity(color,power)
-  repeat i from 0 to 91
+  
+  repeat i_forward from 0 to 91
     repeat ring_num from 1 to 12
-      led(ring_num,i,intensity_val)
-    led(ring_index,i,intensity_val)
+      if ring_num == minute_ring or ring_num == hour_ring
+        next
+      if ring_num < minute_ring
+        led(ring_num,i_forward,Intensity(cyan,30))
+      else
+        led(ring_num,i_forward,Intensity(blue,30))
     update()
-    'waitus(5) 
+    'waitus(5)
+
 
 'old animation code
 pub PulseWhite(wait_time) | i, j
