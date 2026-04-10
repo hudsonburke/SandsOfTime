@@ -13,13 +13,6 @@
 [Parallax Propeller 2 Documentation](https://www.parallax.com/propeller-2/documentation/)
 
 Cog responsibilities:
-- Main: Watchdog and timing, coordinate other cogs
-- ReadClock: Read the RTC
-- ReadHourglassEncoders: Read absolute encoders on the hourglasses
-- ReadArmEncoder: Read the quadrature encoder on the arm
-- HourHand: Move the main arm 
-- LEDs: Control the LEDs
-
 
 ## Things to remember to prevent the wrath of Garner
 
