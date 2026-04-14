@@ -3,7 +3,7 @@ CON
     LEDS_PER_RING = 92
 
 VAR
-    long lights[RINGS * LEDS_PER_RING]
+    long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
 
     byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
     byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
@@ -28,6 +28,7 @@ CON
   violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
+  'takes the ring number and the led number within that ring
   lights[(ring*92)+LEDaddress]:=color
 
 PUB Update() 'General-purpose Registers Used: pr0=address of "lights" variable, pr1=pin (these are passed to PASM from the Spin2 code)
@@ -97,7 +98,7 @@ PUB Intensity(color,intense) : newvalue              ''Changes the intensity (0-
     (((color & $FF)*intense)/255
     )
 
-CON '12 blues for ring colors
+CON '12 blues for ring colors (dark blue to light blue)
   blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
   blue_1 = 232<<16+232<<8+255           '%11101000_11101000_11111111
   blue_2 = 209<<16+209<<8+255           '%11010001_11010001_11111111
@@ -117,8 +118,8 @@ DAT
 {Animations}
 PUB MinuteAnimation() | i_forward, i_backward, ring_num
   'spirals non-active rings in and out
-  'before minute - light blue
-  'after minute - dark blue
+  'before minute - blue gradient
+  'after minute - blank
   'not really sure what these next two lines are for?
   'todo: lights is an array from ws2812b driver
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
@@ -126,22 +127,23 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
   
   repeat
     repeat i_forward from 0 to 91
-      repeat ring_num for 0 to 12
+      repeat ring_num from 0 to 12
         if ring_num == hour_ring          'skip hour ring
           next
         else if ring_num > minute_ring    'skip other rings that are after the minute
           next
+          'todo: these rings might need to be set to off rather than just skipped
         else if ring_num == minute_ring   'double brightness of minute ring
-          led(ring_num, i_forward, Intensity[blues[ring_num], 255])
-        else
+          led(ring_num, i_forward, Intensity(blues[ring_num], 255))
+        else 'all other rings spin
           led(ring_num, i_forward, Intensity(blues[ring_num], 127))   
       update()
 
     repeat i_backward from 91 to 0
       repeat ring_num from 1 to 12
-        if ring_num == hour_ring
+        if ring_num == hour_ring 'skip hour ring
           next
-        led(ring_num,i_backward,0)
+        led(ring_num,i_backward,0) 'turn off all rings
       update()
 
 DAT 'arranging the circle into rows
@@ -158,7 +160,8 @@ DAT 'arranging the circle into rows
   layer11  long  25,26,27,28,29,30,31
 
 
-PUB change_color_down(ring, color) | i
+PUB change_color_down(ring, color) | i 
+  'changes color in the ring from top to bottom
   repeat i from 0 to 6
     led(ring, layer1[i], color)
   update()
@@ -204,8 +207,227 @@ PUB change_color_down(ring, color) | i
   update()
   waitms(50)
 
+
+PUB change_color_down_begin_multi(ring, color_orig, color_new) | i 
+  'changes color in the ring from top to bottom
+  repeat i from 0 to 6 'layer1
+    led(ring, layer1[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer2
+    led(ring, layer2[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer3
+    led(ring, layer3[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 9 'layer4
+    led(ring, layer4[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 10 'layer5
+    led(ring, layer5[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7 'layer6
+    led(ring, layer6[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 10 'layer7
+    led(ring, layer7[i], color_orig)
+  repeat i from 0 to 6 'layer1
+    led(ring, layer1[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 9 'layer8
+    led(ring, layer8[i], color_orig)
+  update()
+  repeat i from 0 to 6 'layer2
+    led(ring, layer2[i], color_new)
+  waitms(50)
+
+  repeat i from 0 to 6 'layer9
+    led(ring, layer9[i], color_orig)
+  repeat i from 0 to 6 'layer3
+    led(ring, layer3[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer10
+    led(ring, layer10[i], color_orig)
+  repeat i from 0 to 9 'layer4
+    led(ring, layer4[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer11
+    led(ring, layer11[i], color_orig)
+  repeat i from 0 to 10 'layer5
+    led(ring, layer5[i], color_new)
+  update()
+  waitms(50)
+
+PUB change_color_down_multi(ring, color_orig, color_new, color_old) | i 
+  'changes color in the ring from top to bottom
+  repeat i from 0 to 6 'layer1
+    led(ring, layer1[i], color_orig)
+  repeat i from 0 to 7 'layer6
+    led(ring, layer6[i], color_old)
+  update()
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer2
+    led(ring, layer2[i], color_orig)
+  repeat i from 0 to 10 'layer7
+    led(ring, layer7[i], color_old)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer3
+    led(ring, layer3[i], color_orig)
+  repeat i from 0 to 9 'layer8
+    led(ring, layer8[i], color_old)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 9 'layer4
+    led(ring, layer4[i], color_orig)
+  repeat i from 0 to 6 'layer9
+    led(ring, layer9[i], color_old)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 10 'layer5
+    led(ring, layer5[i], color_orig)
+  repeat i from 0 to 6 'layer10
+    led(ring, layer10[i], color_old)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7 'layer6
+    led(ring, layer6[i], color_orig)
+  repeat i from 0 to 6 'layer11
+    led(ring, layer11[i], color_old)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 10 'layer7
+    led(ring, layer7[i], color_orig)
+  repeat i from 0 to 6 'layer1
+    led(ring, layer1[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 9 'layer8
+    led(ring, layer8[i], color_orig)
+  repeat i from 0 to 6 'layer2
+    led(ring, layer2[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer9
+    led(ring, layer9[i], color_orig)
+  repeat i from 0 to 6 'layer3
+    led(ring, layer3[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer10
+    led(ring, layer10[i], color_orig)
+  repeat i from 0 to 9 'layer4
+    led(ring, layer4[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer11
+    led(ring, layer11[i], color_orig)
+  repeat i from 0 to 10 'layer5
+    led(ring, layer5[i], color_new)
+  update()
+  waitms(50)
+
+PUB change_color_down_end_multi(ring, color_orig, color_new) | i 
+  'changes color in the ring from top to bottom
+  repeat i from 0 to 6 'layer1
+    led(ring, layer1[i], color_new)
+  repeat i from 0 to 7 'layer6
+    led(ring, layer6[i], color_orig)
+  update()
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer2
+    led(ring, layer2[i], color_new)
+  repeat i from 0 to 10 'layer7
+    led(ring, layer7[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer3
+    led(ring, layer3[i], color_new)
+  repeat i from 0 to 9 'layer8
+    led(ring, layer8[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 9 'layer4
+    led(ring, layer4[i], color_new)
+  repeat i from 0 to 6 'layer9
+    led(ring, layer9[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 10 'layer5
+    led(ring, layer5[i], color_new)
+  repeat i from 0 to 6 'layer10
+    led(ring, layer10[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7 'layer6
+    led(ring, layer6[i], color_new)
+  repeat i from 0 to 6 'layer11
+    led(ring, layer11[i], color_orig)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 10 'layer7
+    led(ring, layer7[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 9 'layer8
+    led(ring, layer8[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer9
+    led(ring, layer9[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer10
+    led(ring, layer10[i], color_new)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 6 'layer11
+    led(ring, layer11[i], color_new)
+  update()
+  waitms(50)
+
+
 DAT
-  hour_color_cycle long red orange yellow green blue purple cyan magenta white pink
+  hour_color_cycle long red orange yellow green blue violet cyan magenta white pink
 
 PUB HourAnimation_general(ring_num) | i
   repeat i from 0 to 9
