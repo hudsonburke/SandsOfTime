@@ -129,6 +129,8 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
     repeat i_forward from 0 to 91
       repeat ring_num from 0 to 12
         if ring_num == hour_ring          'skip hour ring
+          if i_forward < 32 'only spin outermost ring
+            led(ring_num, i_forward, Intensity(blues[ring_num], 255))
           next
         else if ring_num > minute_ring    'skip other rings that are after the minute
           next
@@ -142,6 +144,8 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
     repeat i_backward from 91 to 0
       repeat ring_num from 1 to 12
         if ring_num == hour_ring 'skip hour ring
+          if i_backward < 32 'only spin outermost ring
+            led(ring_num, i_backward, 0)
           next
         led(ring_num,i_backward,0) 'turn off all rings
       update()
@@ -435,10 +439,10 @@ PUB HourAnimation_general(ring_num) | i
     'todo quit early if hour (or minute) changes
 
 
-pub HourAnimation() | prev_ring
+pub HourAnimation() '| prev_ring
   ' animation for ring representing the hour
-  ' either pulse white 
-  ' or outside ring pulses while inner ring does minute animation
+  ' either color cycle 
+  ' or outside ring spins (controlled in minute animation) while inner ring does color cycle
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
@@ -449,9 +453,69 @@ pub HourAnimation() | prev_ring
       HourAnimation_general(hour_ring)
 
 
+DAT 'arranging the circle into rows
+  layer2min   long  39,40,41,42,43
+  layer3min   long  38,44,61,62,63
+  layer4min   long  37,45,60,64,75,76,77,78
+  layer5min   long  36,46,59,65,74,79,86,87,88
+  layer6min   long  35,47,58,66,85,89
+  layer7min   long  34,48,57,67,73,80,84,91,90
+  layer8min   long  33,49,56,68,72,83,82,81
+  layer9min   long  32,50,71,70,69
+  layer10min  long  55,54,53,52,51
+pub MinuteOnHourAnimation(ring, color) | i
+    'changes color in the ring from top to bottom
+  
+  'layer1 (skip)
+  waitms(50)
 
-pub MinuteOnHourAnimation(ring) | waitbetween
-  'todo
+  repeat i from 0 to 4
+    led(ring, layer2[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer3[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7
+    led(ring, layer4[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 8
+    led(ring, layer5[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 5
+    led(ring, layer6[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 8
+    led(ring, layer7[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7
+    led(ring, layer8[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer9[i], color)
+  update()
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer10[i], color)
+  update()
+  waitms(50)
+  
+  'layer11
+  waitms(50)
 
 DAT
   testcolors long {
