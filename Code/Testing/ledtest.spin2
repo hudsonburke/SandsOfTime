@@ -1,0 +1,16 @@
+CON
+  _clkfreq = 300_000_000
+
+VAR
+  {Stacks for Cogs}
+  long Stack2[100], Stack3[100], Stack4[100], Stack5[100], Stack6[100], Stack7[100], Stack8[100]
+
+OBJ
+  leds : "HourglassLED"
+
+PUB Main()
+  leds.setHourRing(5)
+  leds.setMinuteRing(1)
+  
+  cogspin(6, leds.HourAnimation(), @Stack6)
+  cogspin(7, leds.MinuteAnimation(), @Stack7)
