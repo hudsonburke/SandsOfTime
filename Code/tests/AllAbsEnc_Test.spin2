@@ -84,10 +84,6 @@ pub ReadAbsEncoders() | i, value , EncoderNumber, CurrentPosition
       EncCurPos[i-CS0] := CurrentPosition
       EncoderNumber := i-CS0+1
       debug(`term1 'Encoder `(EncoderNumber) = `(CurrentPosition)', 10)
-      ' pst.dec(i-CS0+1)
-      ' pst.str(string(": "))
-      ' pst.dec(value >> 6)
-      ' pst.NewLine()
       pinh(CLK)
       waitus(1)
       pinh(i)
