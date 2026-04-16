@@ -23,9 +23,10 @@ CON
 
   totledcount = RINGS * LEDS_PER_RING
 
-  spin_intensity = 30
-  hour_intensity = 30
-  minute_intensity = 50
+  spin_intensity = 50
+  hour_intensity = 50
+  minute_intensity = 70
+  minute_on_hour_intensity = 100
 
 VAR
   {Stacks for Cogs}
@@ -66,8 +67,8 @@ PUB Main()
   cogspin(7, leds.MinuteAnimation(), @Stack7)}
 
   'ring ranges from 1 - 12
-  setMinuteRing(9)
-  setHourRing(9)
+  setMinuteRing(6)
+  setHourRing(10)
 
   'MinuteAnimation()
   'HourAnimation()
@@ -127,9 +128,9 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
           if ring_num == minute_ring
             if ring_num == hour_ring
               if i_forward < 32 'only spin outermost ring
-                led(ring_num, i_forward, Intensity(blue, minute_intensity))
+                led(ring_num, i_forward, Intensity(blue, minute_on_hour_intensity))
             else
-              led(ring_num, i_forward, Intensity(blues[ring_num], minute_intensity))
+              led(ring_num, i_forward, Intensity(blues[10], minute_intensity))
 
           'when ring is hour ring, skip
           elseif ring_num == hour_ring
@@ -138,16 +139,16 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
           'skip rings after minute ring unless it is hour 12 ring
           elseif ring_num > minute_ring
             if ring_num == 11 'minute 0 ring (ring 11) would be active though
-              led(ring_num, i_forward, Intensity(blues[ring_num], spin_intensity))
+              led(ring_num, i_forward, Intensity(blues[10], spin_intensity))
             'todo: these rings might need to be set to off rather than just skipped
 
           'spin rings before minute ring
           else 'all other rings spin
-            led(ring_num, i_forward, Intensity(blues[ring_num], spin_intensity))
+            led(ring_num, i_forward, Intensity(blues[10], spin_intensity))
 
        'otherwise make 12 o'clock ring active
         else
-          led(11, i_forward, Intensity(blues[ring_num], minute_intensity)) 'bright hour 12 (minute 0) ring
+          led(11, i_forward, Intensity(blues[10], minute_intensity)) 'bright hour 12 (minute 0) ring
       update()
 
     repeat i_backward from 91 to 0
