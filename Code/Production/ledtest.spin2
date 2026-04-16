@@ -66,7 +66,7 @@ PUB Main()
   cogspin(7, leds.MinuteAnimation(), @Stack7)}
 
   'ring ranges from 1 - 12
-  setMinuteRing(6)
+  setMinuteRing(9)
   setHourRing(9)
 
   'MinuteAnimation()
@@ -155,7 +155,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
         led(ring_num,i_backward,0) 'turn off all rings
       update()
 
-pub HourAnimation() '| prev_ring
+pub HourAnimation() | i
   ' animation for ring representing the hour
   ' either color cycle
   ' or outside ring spins (controlled in minute animation) while inner ring does color cycle
@@ -164,7 +164,8 @@ pub HourAnimation() '| prev_ring
 
   repeat
     if hour_ring == minute_ring
-      MinuteOnHourAnimation(hour_ring, hour_color_cycle[0])
+      repeat i from 0 to 9
+        MinuteOnHourAnimation(hour_ring, hour_color_cycle[i])
     else
       HourAnimation_general(hour_ring)
 
@@ -250,53 +251,52 @@ DAT 'arranging the circle into rows
 
 pub MinuteOnHourAnimation(ring, color) | i
     'changes color in the ring from top to bottom
-
   'layer1 (skip)
   waitms(50)
 
   repeat i from 0 to 4
-    led(ring, layer2min[i], Intensity(color, 15))
-  update()
+    led(ring, layer2min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 4
-    led(ring, layer3min[i], Intensity(color, 15) )
-  update()
+    led(ring, layer3min[i], Intensity(color, hour_intensity) )
+  'update()
   waitms(50)
 
   repeat i from 0 to 7
-    led(ring, layer4min [i], Intensity(color, 15))
-  update()
+    led(ring, layer4min [i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 8
-    led(ring, layer5min[i], Intensity(color, 15))
-  update()
+    led(ring, layer5min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 5
-    led(ring, layer6min[i], Intensity(color, 15))
-  update()
+    led(ring, layer6min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 8
-    led(ring, layer7min[i], Intensity(color, 15))
-  update()
+    led(ring, layer7min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 7
-    led(ring, layer8min[i], Intensity(color, 15))
-  update()
+    led(ring, layer8min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 4
-    led(ring, layer9min[i], Intensity(color, 15))
-  update()
+    led(ring, layer9min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   repeat i from 0 to 4
-    led(ring, layer10min[i], Intensity(color, 15))
-  update()
+    led(ring, layer10min[i], Intensity(color, hour_intensity))
+  'update()
   waitms(50)
 
   'layer11
