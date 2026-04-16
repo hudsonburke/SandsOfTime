@@ -1,22 +1,10 @@
 CON
   _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
 
-  {Absolute Encoder Constants}
-  CS0 = 1    ' Start of encoder chip select pin range
-  CSf = 12    ' End of encoder chip select pin range
-  NumEnc = CSf - CS0 + 1
-  CLK = 0
-  DATA = 13
-  AbsEncTolerance = 5 ' In encoder counts
-
   {Limit Switch Constants}
-  LSRetract = 38
-  LSExtend = 37
   IndSensor = 36
 
   {Quadrature Encoder Constants}
-  ExtendEncTopPin = 35
-  ExtendEncBotPin = 34
   ArmEncTopPin = 33
   ArmEncBotPin = 32
 
@@ -26,25 +14,37 @@ CON
   numClockPulses = 10
   numBasePeriods = 1000
 
-  {LCD Constants}
-  #20, JoyUp, JoyDown, JoyLeft, JoyRight, JoyButton
-  LCDTx = 25
+OBJ
+  main_arm : "BTS7960" | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
 
 
-pub ReadMainArmEncoder()
+pub ReadMainArmEncoder()  | count
+  main_arm.InitPins(numClockPulses, numBasePeriods)
+
   dirlow(IndSensor) ' Inverted logic
+
+  debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
+
   ' Home main arm
   ' Start the quadrature encoder
   pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   ' could find max counts
   repeat
-    if pinr(IndSensor)==0
-      waitms(10)
-      if pinr(IndSensor)==0
-        'debug("------------------Triggered---------------")
-        dirlow(ArmEncBotPin) ' Should reset the count on the pin
-        dirhigh(ArmEncBotPin)
-    debug(`mainArm '`(rdpin(ArmEncBotPin))')
+    main_arm.Drive(500)
+    waitms(1000)
+    repeat until inb.[IndSensor-32]==0
+      count := rdpin(ArmEncBotPin)
+      debug(`term0 '`(count)' 10)
+      waitms(20)
+
+    main_arm.Stop()
+    debug(`term0 '------------------Triggered---------------', 10)
+    pinfloat(ArmEncBotPin) ' Should reset the count on the pin
+    pinlow(ArmEncBotPin)
+    count := rdpin(ArmEncBotPin)
+    debug(`term0 '`(count)',10)
+    waitms(2000)
+
 
 {Pin Helper Methods}
 pri dirhigh(pin) ' TODO: Make these do pin ranges

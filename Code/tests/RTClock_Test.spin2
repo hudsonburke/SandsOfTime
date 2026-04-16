@@ -7,7 +7,7 @@ OBJ
 pub ClockTest() | second, minute, hour, day, date, month, year
   debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
   DS3234.InitPins()
-  DS3234.SetTime12Hr(30, 58, 11)
+  DS3234.SetTime12Hr(30, 59, 11)
   repeat
     DS3234.GetTime()
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
