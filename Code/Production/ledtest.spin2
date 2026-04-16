@@ -65,15 +65,32 @@ PUB Main() | i,j
   'cogspin(6, leds.HourAnimation(), @Stack6)
   cogspin(7, leds.MinuteAnimation(), @Stack7)}
 
-  minute_ring := 9
-  hour_ring := 9 -1
+  'ring ranges from 1 - 12
+  setMinuteRing(12)
+  hour_ring := 9
 
   'MinuteAnimation()
   'HourAnimation()
 
-  cogspin(6, HourAnimation(), @Stack6)
-  waitms(3000)
+  'cogspin(6, HourAnimation(), @Stack6)
+  'waitms(3000)
   cogspin(7, MinuteAnimation(), @Stack7)
+
+PUB setMinuteRing(ring)
+  if ring > 12
+    minute_ring := 11
+  elseif ring < 1
+    minute_ring := 0
+  else
+    minute_ring := ring - 1
+
+PUB setHourRing(ring)
+  if ring > 12
+    hour_ring := 11
+  elseif ring < 1
+    hour_ring := 0
+  else
+    hour_ring := ring - 1
 
 CON '12 blues for ring colors (dark blue to light blue)
   blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
@@ -92,44 +109,15 @@ CON '12 blues for ring colors (dark blue to light blue)
 DAT
   blues long blue_1, blue_2, blue_3, blue_4, blue_5, blue_6, blue_7, blue_8, blue_9, blue_10, blue_11, blue_0
 
-PUB allblue() | i,j
-  repeat i from 0 to 11
-    repeat j from 0 to 91
-      led(i,j, Intensity(blues[i], 45))
-  update()
-
-CON 'blue to orange gradient
-  blue_orange_11 = 255 '%00000000_00000000_11111111
-  blue_orange_0 = 60<<16 + 0<<8 + 180 '%00101000_00000000_11001000
-  blue_orange_1 = 100<<16 + 0<<8 + 100 '%00101000_01010101_10101010
-  blue_orange_2 = 100<<16 + 100<<8 + 80 '%00111100_10000000_10000000
-  blue_orange_3 = 90<<16 + 180<<8 + 0 '%01010000_10101010_01010101
-  blue_orange_4 = 60<<16 + 180<<8 + 0 '%01100100_11010100_00101010
-  blue_orange_5 = 60<<16 + 200<<8 + 0 '%01111000_11111111_00000000
-
-DAT
-  blue_orange long blue_orange_0, blue_orange_1, blue_orange_2, blue_orange_3, blue_orange_4, blue_orange_5, blue_orange_4, blue_orange_3, blue_orange_2, blue_orange_1, blue_orange_0, blue_orange_11
-
-PUB blueorange() | i,j
-repeat
-  repeat j from 0 to 91
-    repeat i from 0 to 11
-      led(i,j, Intensity(blue_orange[i], 45))
-    update()
-    waitms(20)
-
-  repeat j from 91 to 0
-    repeat i from 0 to 11
-      led(i,j, 0)
-    update()
-    waitms(20)
-
 PUB MinuteAnimation() | i_forward, i_backward, ring_num
   'spirals non-active rings in and out
   'before minute - blue gradient
   'after minute - blank
   'not really sure what these next two lines are for?
   'todo: lights is an array from ws2812b driver
+
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
 
   repeat
@@ -138,7 +126,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
         'when not ring 0 (min 5)...
         if minute_ring <> 0
           'when ring is minute ring, increase brightness
-          if ring_num == minute_ring - 1
+          if ring_num == minute_ring
             if ring_num == hour_ring - 1
               if i_forward < 32 'only spin outermost ring
                 led(ring_num, i_forward, Intensity(blue, minute_intensity))
@@ -150,7 +138,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
             next
 
           'skip rings after minute ring unless it is hour 12 ring
-          elseif ring_num > minute_ring - 1
+          elseif ring_num > minute_ring
             if ring_num == 11 'minute 0 ring (ring 11) would be active though
               led(ring_num, i_forward, Intensity(blues[ring_num], spin_intensity))
             'todo: these rings might need to be set to off rather than just skipped
