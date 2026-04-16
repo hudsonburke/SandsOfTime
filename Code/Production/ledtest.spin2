@@ -72,6 +72,7 @@ PUB Main() | i,j
   'HourAnimation()
 
   cogspin(6, HourAnimation(), @Stack6)
+  waitms(3000)
   cogspin(7, MinuteAnimation(), @Stack7)
 
 CON '12 blues for ring colors (dark blue to light blue)
@@ -129,8 +130,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
   'after minute - blank
   'not really sure what these next two lines are for?
   'todo: lights is an array from ws2812b driver
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
 
   repeat
     repeat i_forward from 0 to 91
