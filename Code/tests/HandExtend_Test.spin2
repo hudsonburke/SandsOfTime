@@ -1,0 +1,60 @@
+CON
+  _clkfreq = 300_000_000
+
+  numClockPulses = 10
+  numBasePeriods = 1000
+
+  {Limit Switch Pins}
+  LSRetract = 38
+  LSExtend = 37
+
+  LSDebounceTime = 50 ' ms to wait after detecting a limit switch for it to stabilize and be read again
+
+  {Quadrature Encoder Pins}
+  ExtendEncTopPin = 35
+  ExtendEncBotPin = 34
+
+  ExtendEncTolerance = 30
+
+
+  Extend_Kp = 5
+  Extend_Ki = 0
+  Extend_Kd = 0
+
+OBJ
+  hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
+
+PUB TestHandExtend()
+
+  {Initialize and retract motor}
+  pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
+  hand_extend.InitPins(numClockPulses, numBasePeriods)
+  Retract()
+  repeat
+    ExtendArm(2000)
+    waitms(2000)
+    Retract()
+    waitms(2000)
+
+pub Retract()
+  ' Drive the arm backward until LSRetract reads 1
+  hand_extend.DriveBackward(1000)
+  repeat
+    if pinr(LSRetract) == 1
+      waitms(LSDebounceTime)
+      if pinr(LSRetract) == 1
+        quit
+  ClearQuadratureEncoder(ExtendEncBotPin)
+  hand_extend.Stop()
+
+pub ExtendArm(set_pos) | error
+  error := set_pos - rdpin(ExtendEncBotPin)
+  ' TODO: Add safety check to prevent pinching fingers
+  repeat while abs error > ExtendEncTolerance and pinr(LSExtend) == 0
+    hand_extend.Drive(error*Extend_Kp)
+    error := set_pos - rdpin(ExtendEncBotPin)
+  hand_extend.Stop()
+
+pri ClearQuadratureEncoder(bot_pin)
+  pinfloat(bot_pin)
+  pinlow(bot_pin)
