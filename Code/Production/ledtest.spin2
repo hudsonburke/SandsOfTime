@@ -43,7 +43,7 @@ VAR
     byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
 
 
-PUB Main() | i,j
+PUB Main()
 
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
@@ -66,14 +66,14 @@ PUB Main() | i,j
   cogspin(7, leds.MinuteAnimation(), @Stack7)}
 
   'ring ranges from 1 - 12
-  setMinuteRing(12)
-  hour_ring := 9
+  setMinuteRing(6)
+  setHourRing(9)
 
   'MinuteAnimation()
   'HourAnimation()
 
-  'cogspin(6, HourAnimation(), @Stack6)
-  'waitms(3000)
+  cogspin(6, HourAnimation(), @Stack6)
+  waitms(3000)
   cogspin(7, MinuteAnimation(), @Stack7)
 
 PUB setMinuteRing(ring)
@@ -127,14 +127,14 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
         if minute_ring <> 0
           'when ring is minute ring, increase brightness
           if ring_num == minute_ring
-            if ring_num == hour_ring - 1
+            if ring_num == hour_ring
               if i_forward < 32 'only spin outermost ring
                 led(ring_num, i_forward, Intensity(blue, minute_intensity))
             else
               led(ring_num, i_forward, Intensity(blues[ring_num], minute_intensity))
 
           'when ring is hour ring, skip
-          elseif ring_num == hour_ring - 1
+          elseif ring_num == hour_ring
             next
 
           'skip rings after minute ring unless it is hour 12 ring
