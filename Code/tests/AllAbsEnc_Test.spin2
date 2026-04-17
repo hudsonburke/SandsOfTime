@@ -1,0 +1,111 @@
+CON
+  _clkfreq = 300_000_000
+
+  {Absolute Encoder Constants}
+  CS0 = 1    ' Start of encoder chip select pin range
+  CSf = 12    ' End of encoder chip select pin range
+  NumEnc = CSf - CS0 + 1
+  CLK = 0
+  DATA = 13
+  AbsEncTolerance = 3 ' In encoder counts
+
+
+VAR
+  byte abs_init
+
+  long Stack2[100]
+  word EncCurPos[NumEnc+1], EncSetPoint[NumEnc+1] ' Zero is a dummy so that index corresponds to hour
+
+pub Main() | i
+  debug(`term term0 pos 200 20 size 25 26 textsize 24 color white)
+  abs_init := 0
+  cogspin(2, ReadAbsEncoders(), @Stack2)
+  repeat until abs_init == 1
+  repeat
+    repeat i from 1 to NumEnc
+      debug(`term0 'Encoder Current`(i) = `(EncCurPos[i])', 10)
+      debug(`term0 'Encoder SetPoint`(i) = `(EncSetPoint[i])', 10)
+    debug(`term0 clear)
+
+
+{{Read all absolute encoder positions via SPI into the EncCurPos list}}
+
+pub InitAbsEncoders() | i
+  dirhigh(CLK)
+  pinh(CLK)
+  dirlow(DATA)
+  repeat i from CS0 to CSf
+    dirhigh(i)
+    pinh(i)
+    ReadAbsOnce(i)
+    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0    ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
+
+pub ReadAbsEncoders() | i
+  InitAbsEncoders()
+  abs_init := 1
+  repeat
+    repeat i from CS0 to CSf
+      ReadAbsOnce(i)
+
+pub ReadAbsOnce(i) | value
+  pinl(i) ' Chip Select
+  waitus(1) ' Propeller 2 fast 2 furious
+  pinl(CLK)
+  waitus(1)
+  value:=0
+  repeat 16   ' Read 16 bits (top 10 are position)
+    pinh(CLK)
+    waitus(1)
+    value := (value << 1) | pinr(DATA)
+    pinl(CLK)
+    waitus(1)
+  EncCurPos[i-CS0+1] := value >> 6
+  pinh(CLK)
+  waitus(1)
+  pinh(i)
+  waitus(1)
+
+{Pin Helper Methods}
+pri dirhigh(pin)
+  if pin > 31
+    dirb.[pin-32]~~
+  else
+    dira.[pin]~~
+
+pri dirlow(pin)
+  if pin > 31
+    dirb.[pin-32]~
+  else
+    dira.[pin]~
+
+' pub ReadAbsEncoders() | i, value , EncoderNumber, CurrentPosition
+'   debug(`term term1 pos 200 20 size 25 13 textsize 24 color white)
+'   dirhigh(CLK)
+'   pinh(CLK)
+'   dirlow(DATA)
+'   repeat i from CS0 to CSf
+'     dirhigh(i)
+'     pinh(i)
+'   repeat
+'     repeat i from CS0 to CSf
+'       pinl(i) ' Chip Select
+'       waitus(1) ' Propeller 2 fast 2 furious
+'       pinl(CLK)
+'       waitus(1)
+'       value:=0
+'       repeat 16   ' Read 16 bits (top 10 are position)
+'         pinh(CLK)
+'         waitus(1)
+'         value := (value << 1) | pinr(DATA)
+'         pinl(CLK)
+'         waitus(1)
+'       CurrentPosition := value >> 6
+'       EncCurPos[i-CS0] := CurrentPosition
+'       EncoderNumber := i-CS0+1
+'       debug(`term1 'Encoder `(EncoderNumber) = `(CurrentPosition)', 10)
+'       pinh(CLK)
+'       waitus(1)
+'       pinh(i)
+'       waitus(1)
+'     waitms(200)
+'     debug(`term1 clear)

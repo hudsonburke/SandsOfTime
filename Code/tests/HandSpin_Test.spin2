@@ -1,0 +1,19 @@
+CON
+  _clkfreq = 300_000_000
+
+  numClockPulses = 10
+  numBasePeriods = 1000
+
+OBJ
+  hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
+
+PUB TestHandSpin()
+
+  hand_spin.InitPins(numClockPulses, numBasePeriods)
+  repeat
+    hand_spin.Drive(800)
+    waitms(2000)
+    hand_spin.Drive(-800)
+    waitms(2000)
+    hand_spin.Stop()
+    waitms(2000)

@@ -1,0 +1,16 @@
+CON
+  _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
+
+OBJ
+  DS3234 : "DS3234" | SS=19, MOSI=18, MISO=17, SCLK=16, SQW=-1
+
+pub ClockTest() | second, minute, hour, day, date, month, year
+  debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
+  DS3234.InitPins()
+  DS3234.SetTime12Hr(30, 59, 11)
+  repeat
+    DS3234.GetTime()
+    second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
+    debug(`term0 '`(hour) :`(minute) :`(second)', 10)
+    waitms(200)
+    debug(`term0 clear)
