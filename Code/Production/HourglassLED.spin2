@@ -2,6 +2,7 @@ CON
   RINGS = 12
   LEDS_PER_RING = 92
 
+  off_intensity = 25
   spin_intensity = 50
   hour_intensity = 50
   minute_intensity = 70
@@ -154,45 +155,49 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
 
   repeat
     repeat i_forward from 0 to 91
-      repeat ring_num from 0 to 11
-        'when not ring 0 (min 5)...
-        if minute_ring <> 0
-          'when ring is minute ring, increase brightness
-          if ring_num == minute_ring
-            if ring_num == hour_ring
-              if i_forward < 32 'only spin outermost ring
-                led(ring_num, i_forward, Intensity(blue, minute_on_hour_intensity))
-            else
-              led(ring_num, i_forward, Intensity(blue, minute_intensity))
+      repeat ring_num from 0 to 10
+      ' 'be brighter on minute ring
+        if ring_num == minute_ring
+          if ring_num == hour_ring
+            if i_forward < 32 'only spin outermost ring
+              led(ring_num, i_forward, Intensity(red, minute_on_hour_intensity))
+          else
+            led(ring_num, i_forward, Intensity(violet, minute_intensity))
 
-          'when ring is hour ring, skip
-          elseif ring_num == hour_ring
+        'be white when greater than minute ring
+        elseif ring_num > minute_ring
+          if ring_num == hour_ring
             next
+          led(ring_num, i_forward, Intensity(white, off_intensity))
 
-          'skip rings after minute ring unless it is hour 12 ring
-          elseif ring_num > minute_ring
-            if ring_num == 11 'minute 0 ring (ring 11) would be active though
-              led(ring_num, i_forward, Intensity(blue, spin_intensity))
-            'todo: these rings might need to be set to off rather than just skipped
-
-          'spin rings before minute ring
-          else 'all other rings spin
+        'spin rings before minute ring
+        elseif ring_num < minute_ring
+          if minute_ring == 11
+            led(ring_num, i_forward, Intensity(white, off_intensity))
+          elseif ring_num <> hour_ring
             led(ring_num, i_forward, Intensity(blue, spin_intensity))
 
-       'otherwise make 12 o'clock ring active
+      'ring 12 (index 11)
+      if minute_ring == 11
+        if minute_ring == hour_ring
+          if i_forward < 32 'only spin outermost ring
+            led(11, i_forward, Intensity(red, minute_on_hour_intensity))
         else
-          led(11, i_forward, Intensity(blue, minute_intensity)) 'bright hour 12 (minute 0) ring
+          led(11, i_forward, Intensity(violet, minute_intensity))
+      else
+        led(11, i_forward, Intensity(blue, spin_intensity))
       update()
 
     repeat i_backward from 91 to 0
       repeat ring_num from 0 to 11
-        if ring_num == hour_ring and ring_num == minute_ring
-          if i_backward < 32
-            led(ring_num, i_backward,0)
-          else
-            next
+        if ring_num == hour_ring
+          if ring_num == minute_ring
+            if i_backward < 32
+              led(ring_num, i_backward,0)
+
         else
           led(ring_num,i_backward,0) 'turn off all rings
+
       update()
 
 pub HourAnimation() | i

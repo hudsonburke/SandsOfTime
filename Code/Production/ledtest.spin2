@@ -22,7 +22,7 @@ VAR
     byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
 
 
-PUB Main()
+PUB Main()  | minute, hour
 
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
@@ -35,13 +35,22 @@ PUB Main()
   waitms(3000)
 
 
-  'ring ranges from 1 - 12
-  leds.setMinuteRing(1)
-  leds.setHourRing(1)
+  leds.setMinuteRing(0)
+  leds.setHourRing(12)
 
   cogspin(6, leds.HourAnimation(), @Stack6)
   waitms(1000)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
+
+  leds.turnEverythingOff()
+  leds.update()
+  waitms(1000)
+
+  repeat hour from 1 to 12
+    leds.setHourRing(hour)
+    repeat minute from 0 to 11
+      leds.setMinuteRing(minute)
+      waitms(5000)
 
 
 CON '7 blue green colors
