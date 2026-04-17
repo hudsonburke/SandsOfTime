@@ -101,6 +101,7 @@ EndAddr   long 0                 'Stores the final Hub RAM address of "lights" a
 PUB setMinuteRing(ring)
 'input: 0-11 (corresponding to minute//5)
 'output: index of ring where ring
+
   if ring == 0
     global_minute_ring := 11
   else

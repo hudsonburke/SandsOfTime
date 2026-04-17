@@ -1,6 +1,6 @@
 CON
-  _clkfreq = 300_000_000        
-  
+  _clkfreq = 300_000_000
+
   DEBUG_MODE=false
 
   {Absolute Encoder Constants}
@@ -55,38 +55,7 @@ CON 'blue to orange gradient
   RINGS = 12
   LEDS_PER_RING = 92
 
-  off            = 0                            '%00000000_00000000_00000000
-  red            = 255<<8                       '%00000000_11111111_00000000
-  green          = 255<<16                      '%11111111_00000000_00000000
-  blue           = 255                          '%00000000_00000000_11111111
-  white          = 255<<16+255<<8+255           '%11111111_11111111_11111111
-  cyan           = 255<<16+255                  '%11111111_00000000_11111111
-  magenta        = 255<<8+255                   '%00000000_11111111_11111111
-  yellow         = 255<<16+255<<8               '%11111111_11111111_00000000
-  chartreuse     = 255<<16+127<<8               '%11111111_01111111_00000000
-  orange         = 165<<16+255<<8               '%10100101_11111111_11010100
-  aquamarine     = 255<<16+127<<8+212           '%11111111_01111111_11010100
-  pink           = 192<<16+255<<8+203           '%11000000_11111111_11001011
-  turquoise      = 224<<16+64<<8+192            '%11100000_01000000_11000000
-  realwhite      = 255<<16+200<<8+255           '%11111111_11001000_11111111
-  indigo         = 75<<8+130                    '%00000000_01001011_10000010
-  violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
-
   totledcount = RINGS * LEDS_PER_RING
-
-  spin_intensity = 30
-  minute_intensity = 50
-
-  blue_orange_11 = 255 '%00000000_00000000_11111111
-  blue_orange_0 = 60<<16 + 0<<8 + 180 '%00101000_00000000_11001000
-  blue_orange_1 = 100<<16 + 0<<8 + 100 '%00101000_01010101_10101010
-  blue_orange_2 = 100<<16 + 100<<8 + 80 '%00111100_10000000_10000000
-  blue_orange_3 = 90<<16 + 180<<8 + 0 '%01010000_10101010_01010101
-  blue_orange_4 = 60<<16 + 180<<8 + 0 '%01100100_11010100_00101010
-  blue_orange_5 = 60<<16 + 200<<8 + 0 '%01111000_11111111_00000000
-
-DAT
-  blue_orange long blue_orange_0, blue_orange_1, blue_orange_2, blue_orange_3, blue_orange_4, blue_orange_5, blue_orange_4, blue_orange_3, blue_orange_2, blue_orange_1, blue_orange_0, blue_orange_11
 
 VAR
   {Stacks for Cogs}
@@ -108,6 +77,7 @@ OBJ
   arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
   hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
+  leds : "HourglassLED"
 
 ' Runs on cog 0
 PUB Main() | minute_i, i
@@ -116,7 +86,17 @@ PUB Main() | minute_i, i
   {Initialize readers}
   cogspin(1, ReadRTClock(), @Stack1)
 
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  leds.turnEverythingOff()
+  leds.update()
+  waitms(1000)
 
+  cogspin(6, leds.HourAnimation(), @Stack6)
+  waitms(1000)
+  cogspin(7, leds.MinuteAnimation(), @Stack7)
+
+{
   abs_init := 0
   cogspin(2, ReadAbsEncoders(), @Stack2)
   repeat until abs_init == 1
@@ -127,8 +107,6 @@ PUB Main() | minute_i, i
 
   cogspin(3, ReadArmEncoder(), @Stack3)
 
-  {Initialize LEDs}
-  cogspin(4, blueorange(), @Stack4)
 
   pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   hand_extend.InitPins(numClockPulses, numBasePeriods)
@@ -159,7 +137,7 @@ PUB Main() | minute_i, i
   {End Setup}
   debug(`term0 'End of Setup', 10)
   repeat
-    repeat i from 1 to 12 
+    repeat i from 1 to 12
       if (minute +// 5) == 4 && second +>= 50 && minute <> last_flipped_minute
         ' Top Priority: Check if it's time to flip an hourglass
         last_flipped_minute := minute
@@ -180,91 +158,9 @@ PUB Main() | minute_i, i
         waitms(100)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
+}
 
 {{Main Cog Helper Methods}}
-PUB blueorange() | i,j
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-
-repeat
-  repeat j from 0 to 91
-    repeat i from 0 to 11
-      led(i,j, Intensity(blue_orange[i], 45))
-    update()
-    waitms(20)
-
-  repeat j from 91 to 0
-    repeat i from 0 to 11
-      led(i,j, 0)
-    update()
-    waitms(20)
-
-pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
-  'takes the ring number and the led number within that ring
-  lights[(ring*92)+LEDaddress]:=color
-
-PUB Intensity(color, intense) : result | r, g, b
-    '' Scales a color (0xRRGGBB) or a single value (0-255) by intense (0-255)
-    intense := 0 #> intense <# 255
-
-    ' Apply Gamma Correction (Optional but highly recommended)
-    ' This makes "2" actually look dim to the human eye.
-    intense := (intense * intense) / 255
-
-    if color > $FF                             ' If input is a packed RGB long
-        r := ((color >> 16) & $FF) * intense / 255
-        g := ((color >> 8) & $FF) * intense / 255
-        b := (color & $FF) * intense / 255
-        return (r << 16) | (g << 8) | b        ' Return packed long
-    else                                       ' If input is just a single 0-255 value
-        return (color * intense) / 255         ' Return single byte for PWM
-
-PUB update() 'General-purpose Registers Used: pr0=address of "lights" variable, pr1=pin (these are passed to PASM from the Spin2 code)
-  pinl((pr1+12)..pr1)            'Send Low reset signal to WS2812B LEDs
-  waitus(300)                    'Reset signal width is 300us
-
-          org                    'Jump into inline Propeller 2 Assembly Code (running at ~6.67ns per line)
-          mov counter,#0         'Reset counter to 0
-          mov outputpin,pr1      'Start with 1st output pin
-          mov index,pr0          'Copy Hub RAM address of start of "lights" array to index variable
-          mov EndAddr,pr0        'Copy Hub RAM address of start of "lights" array to EndAddr variable
-Loop0     add EndAddr,#368       'Add 92 to EndAddr variable to get the last/end address of this section of the "lights" array
-
-Loop1     rdlong ledcolor,index  'Load new long of color data, output 24 bits to LED matrix
-          mov bit,#23            'Reset bit index pointer to 23
-Loop2     call #OutputBit        'Read and output bits 23 through 1
-          djnz bit, #Loop2       'Decrement bit index by 1, and if it is not zero, jump back up to "Loop2" line
-          call #OutputBit        'Read and output the last bit (bit zero) as well
-
-          add index,#4           'Move on to next long of data (4 bytes) representing the next LED in the "lights" array
-          cmp index,EndAddr  wz  'Check to see if index has reached end address, write Z flag if it has
-    if_nz jmp #Loop1             'If index is not zero, jump back up to "Loop1" line to grab another long of LED data
-
-          add counter,#1         'Add one to the counter
-          add outputpin,#1       'Add one to the output pin (stepping up from Pins 47-59)
-          cmp counter,#12  wz    'Check to see if counter has reached 12, write Z flag if it has
-    if_nz jmp #Loop0
-
-OutputBit testb ledcolor,bit wz  'Test bit from color data long, set Z flag to bit's state
-          drvh outputpin               'Drive output data pin High (start with pin on)
-    'If bit is High, send a One pulse signal (800ns High, 800ns Low)
-    if_z  waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238) (See WS2812B datasheet version 5)
-    if_z  drvl outputpin              'Drive output data pin Low
-    if_z  waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238)
-    'If bit is Low, send a Zero pulse signal (200ns High, 800ns Low)
-    if_nz waitx #88              'Wait for 300ns  (300ns/3.33ns=90, 90-2=88)
-    if_nz drvl outputpin               'Drive output data pin Low
-    if_nz waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238) (See WS2812B datasheet)
-          ret                    'Return from OutputBit subroutine
-
-counter   long 0                 'Use to store the counter value that counts which section of lights are being worked with
-index     long 0                 'Use as an index to specify LED number in the "lights" array matrix 0-63
-outputpin long 0                 'Keeps track of the output pin
-bit       long 0                 'Keeps track of which bit in the color data is being read and transmitted
-ledcolor  long 0                 'Stores an LED's color data from "lights" array in Hub RAM
-StartAddr long 0                 'Stores the starting Hub RAM address of "lights" array (for a set of 93 lights)
-EndAddr   long 0                 'Stores the final Hub RAM address of "lights" array (for a set of 93 lights)
-          end                    'End in-line assembly program
 
 {Helper method for sequence to flip an hourglass given by its index}
 pub HourglassSeq(i)
@@ -292,7 +188,7 @@ pub ExtendArm(set_pos) | error
       if pinr(LSExtend) == 1
         debug(`term0 'Arm Fully Extended', 10)
         quit
-    
+
     error := set_pos - rdpin(ExtendEncBotPin)
     if abs(error) < ExtendEncTolerance
       quit
@@ -335,16 +231,21 @@ pub CalculateAbsEncError(current, target) : error
 {{Cog Methods}}
 
 {{Read clock and handle LCD}}
-pub ReadRTClock()
+pub ReadRTClock() |minute_divide
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
 
   DS3234.InitPins()
-  DS3234.SetTime12Hr(30, 58, 11)
+  DS3234.SetTime12Hr(30, 58, 10)
   repeat
     ' Read the time from the chip
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes and return
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
+
+    leds.setHourRing(hour//12)
+    leds.setMinuteRing(minute/5)
+    minute_divide := minute/5
+    debug(`term0 '`(minute_divide)',10)
     debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
     waitms(400) 'slow it down since lowest resulution is 1 second anyway
 

@@ -17,9 +17,6 @@ OBJ
 VAR
     long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
 
-    byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
-    byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
-
 
 PUB Main()  | minute, hour
 
