@@ -34,7 +34,9 @@ PUB Main()  | minute, hour
   leds.update()
   waitms(3000)
 
+  leds.HourSong()
 
+{
   leds.setMinuteRing(0)
   leds.setHourRing(1)
 
@@ -47,31 +49,4 @@ PUB Main()  | minute, hour
     repeat minute from 0 to 11
       leds.setMinuteRing(minute)
       waitms(6000)
-
-
-CON '7 blue green colors
-  bg0 = 255
-  bg1 = 42<<16 + 234
-  bg2 = 85<<16 + 213
-  bg3 = 128<<16 + 192
-  bg4 = 170<<16 + 170
-  bg5 = 212<<16 + 149
-  bg6 = 255<<16 + 128
-
-CON '12 blues for ring colors (dark blue to light blue)
-  blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
-  blue_1 = 232<<16+232<<8+255           '%11101000_11101000_11111111
-  blue_2 = 209<<16+209<<8+255           '%11010001_11010001_11111111
-  blue_3 = 186<<16+186<<8+255           '%10111010_10111010_11111111
-  blue_4 = 163<<16+163<<8+255           '%10100011_10100011_11111111
-  blue_5 = 140<<16+140<<8+255           '%10001100_10001100_11111111
-  blue_6 = 117<<16+117<<8+255           '%01110101_01110101_11111111
-  blue_7 = 94<<16+94<<8+255             '%01011110_01011110_11111111
-  blue_8 = 71<<16+71<<8+255             '%01000111_01000111_11111111
-  blue_9 = 48<<16+58<<16+255
-  blue_10 = 25<<16+25<<8+255
-  blue_11 = 255                          '%00000000_00000000_11111111
-
-DAT
-  'blues long blue_1, blue_2, blue_3, blue_4, blue_5, blue_6, blue_7, blue_8, blue_9, blue_10, blue_11, blue_0
-  blues long bg1, bg2, bg3, bg4, bg5, bg6, bg5, bg4, bg3, bg2, bg1, bg0
+}

@@ -9,6 +9,8 @@ CON
   minute_on_hour_intensity = 100
 
   hour_wait = 50
+  song_fade_time = 10
+  song_tempo = 500
 
 VAR
     long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
@@ -40,7 +42,7 @@ CON
 
   spin_blue     = 70<<16 + 255
   minute_blue   = 255
-  hour_blue     = 255<<16
+  hour_blue     = 255
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
   'takes the ring number and the led number within that ring
@@ -132,23 +134,6 @@ PUB Intensity(color, intense) : result | r, g, b
         return (r << 16) | (g << 8) | b        ' Return packed long
     else                                       ' If input is just a single 0-255 value
         return (color * intense) / 255         ' Return single byte for PWM
-
-CON '12 blues for ring colors (dark blue to light blue)
-  blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
-  blue_1 = 232<<16+232<<8+255           '%11101000_11101000_11111111
-  blue_2 = 209<<16+209<<8+255           '%11010001_11010001_11111111
-  blue_3 = 186<<16+186<<8+255           '%10111010_10111010_11111111
-  blue_4 = 163<<16+163<<8+255           '%10100011_10100011_11111111
-  blue_5 = 140<<16+140<<8+255           '%10001100_10001100_11111111
-  blue_6 = 117<<16+117<<8+255           '%01110101_01110101_11111111
-  blue_7 = 94<<16+94<<8+255             '%01011110_01011110_11111111
-  blue_8 = 71<<16+71<<8+255             '%01000111_01000111_11111111
-  blue_9 = 48<<16+58<<16+255
-  blue_10 = 25<<16+25<<8+255
-  blue_11 = 255                          '%00000000_00000000_11111111
-
-DAT
-  blues long blue_0, blue_1, blue_2, blue_3, blue_4, blue_5, blue_6, blue_7, blue_8, blue_9, blue_10, blue_11
                   '
 {Animations}
 PUB MinuteAnimation() | i_forward, i_backward, ring_num
@@ -209,6 +194,63 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
 
       update()
 
+
+
+PUB HourSong()
+  turnEverythingOff()
+  update()
+  waitms(1000)
+
+  TurnOn(blue, 0)
+  
+
+{
+  FadeIn(blue, 0)
+  waitms(song_tempo)
+  FadeIn(orange, 8)
+  waitms(song_tempo)
+  FadeIn(blue, 1)
+  waitms(song_tempo)
+
+  FadeIn(orange, 5)
+  waitms(song_tempo*2)
+  FadeOut(orange, 5)
+  waitms(song_tempo)
+
+  FadeIn(blue, 5)
+  waitms(song_tempo)
+  FadeIn(orange, 1)
+  waitms(song_tempo)
+  FadeIn(blue, 0)
+  waitms(song_tempo)
+
+  FadeIn(orange, 8)
+  waitms(song_tempo*5)
+  FadeOut(orange, 8)
+  waitms(song_tempo)
+}
+
+PUB TurnOn(color, ring_num) | i
+  repeat i from 0 to 91
+    led(ring_num, i, color)
+  update()
+
+PUB FadeIn(color, ring_num) | int, i 
+  repeat int from 3 to 20
+    repeat i from 0 to 91
+      led(ring_num, i*5, Intensity(color, int))
+    update()
+    waitms(song_fade_time)
+
+PUB FadeOut(color, ring_num) | int, i 
+  repeat int from 20 to 3
+    repeat i from 0 to 91
+      led(ring_num, i*5, Intensity(color, int))
+    update()
+    waitms(song_fade_time*5)
+
+
+
 pub HourAnimation() | i
   ' animation for ring representing the hour
   ' either color cycle
@@ -237,7 +279,6 @@ DAT 'arranging the circle into rows
   layer11  long  25,26,27,28,29,30,31
 
 CON 'orange values
-  orange1 = 30<<16 + 255<<8
   orange2 = 60<<16 + 255<<8
   orange3 = 80<<16 + 255<<8
   orange4 = 100<<16 + 255<<8
@@ -245,15 +286,12 @@ CON 'orange values
   orange6 = 145<<16 + 255<<8
   orange7 = 165<<16 + 255<<8
   orange8 = 185<<16 + 255<<8
-  orange9 = 205<<16 + 255<<8
-  orange10 = 255<<16 + 255<<8
 
-  orange_count = 18
+  orange_count = 12
 
 
 DAT
-  'hour_color_cycle long red, orange, yellow, green, blue, violet, cyan, magenta, white, pink
-  hour_color_cycle long orange1, orange2, orange3, orange4, orange5, orange6, orange7, orange8, orange9, orange10, orange9, orange8, orange7, orange6, orange5, orange4, orange3, orange2
+  hour_color_cycle long orange2, orange3, orange4, orange5, orange6, orange7, orange8, orange7, orange6, orange5, orange4, orange3
 
 PUB HourAnimation_general(ring_num) | i
   repeat i from 0 to orange_count-1
@@ -587,3 +625,4 @@ PUB change_color_down_end_multi(ring, color_orig, color_new) | i
     led(ring, layer11[i], color_new)
   update()
   waitms(50)
+
