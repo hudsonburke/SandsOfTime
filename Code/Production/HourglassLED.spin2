@@ -189,7 +189,10 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
     repeat i_backward from 91 to 0
       repeat ring_num from 0 to 11
         if ring_num == hour_ring
-          next
+          if i_backward < 32
+            led(ring_num, i_backward,0)
+          else
+            next
         else
           led(ring_num,i_backward,0) 'turn off all rings
       update()

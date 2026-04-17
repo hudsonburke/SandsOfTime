@@ -36,11 +36,8 @@ PUB Main()
 
 
   'ring ranges from 1 - 12
-  leds.setMinuteRing(11)
-  leds.setHourRing(10)
-
-  'MinuteAnimation()
-  'HourAnimation()
+  leds.setMinuteRing(3)
+  leds.setHourRing(3)
 
   cogspin(6, leds.HourAnimation(), @Stack6)
   waitms(3000)
