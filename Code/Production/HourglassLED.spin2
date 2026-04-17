@@ -85,21 +85,19 @@ StartAddr long 0                 'Stores the starting Hub RAM address of "lights
 EndAddr   long 0                 'Stores the final Hub RAM address of "lights" array (for a set of 93 lights)
           end                    'End in-line assembly program
 
+
 PUB setMinuteRing(ring)
-  if ring > 12
+'input: 0-11 (corresponding to minute//5)
+'output: index of ring where ring
+  if ring == 0
     minute_ring := 11
-  elseif ring < 1
-    minute_ring := 0
   else
     minute_ring := ring - 1
 
 PUB setHourRing(ring)
-  if ring > 12
-    hour_ring := 11
-  elseif ring < 1
-    hour_ring := 0
-  else
-    hour_ring := ring - 1
+'input: 1-12 (corresponding hour)
+'output: index of ring where hour is (0-11)
+  hour_ring := ring - 1
 
 pub turnEverythingOff()| i,j
   longfill(@lights,off,RINGS*LEDS_PER_RING) 'Set all values in "lights" array to zero (turning all LEDs off)
@@ -188,7 +186,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
 
     repeat i_backward from 91 to 0
       repeat ring_num from 0 to 11
-        if ring_num == hour_ring
+        if ring_num == hour_ring and ring_num == minute_ring
           if i_backward < 32
             led(ring_num, i_backward,0)
           else
