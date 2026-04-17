@@ -21,6 +21,8 @@ VAR
     byte temp_minute_ring
     byte temp_hour_ring
 
+    byte song_finished_flag
+
 CON
  'Predefined colors                               green      red      blue
   off            = 0                            '%00000000_00000000_00000000
@@ -216,6 +218,8 @@ PUB HourSong()
 
   Flash(orange, 8, 6)
 
+  song_finished_flag := 1
+
 
 PUB Flash(color, ring_num, wait_count) | i
     TurnOn(color, ring_num)
@@ -224,7 +228,6 @@ PUB Flash(color, ring_num, wait_count) | i
     waitms(100)
 
 PUB TurnOn(color, ring_num) | i
-  debug(`term0 'hello turn on',10)
   repeat i from 0 to 91
     led(ring_num, i, Intensity(color, 100))
   update()
@@ -243,7 +246,11 @@ PUB FadeOut(color, ring_num) | int, i
     update()
     waitms(song_fade_time*5)
 
+PUB setSongFinish(finished)
+  song_finished_flag := finished
 
+PUB getSongFinish() : result
+  return song_finished_flag
 
 pub HourAnimation() | i
   ' animation for ring representing the hour

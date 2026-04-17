@@ -10,8 +10,6 @@ VAR
   {Stacks for Cogs}
   long Stack2[100], Stack3[100], Stack4[100], Stack5[100], Stack6[100], Stack7[100], Stack8[100]
 
-  byte song_finished_flag = 0
-
 OBJ
   leds : "HourglassLED"
 
@@ -54,16 +52,18 @@ PUB Main()  | minute, hour
 
 PUB HourStuff()
   waitms(1000)
-  
+  leds.setSongFinish(0)
+
   cogstop(6)
   cogstop(7)
   waitms(1000)
   cogspin(6, leds.HourSong(), @Stack6)
 
-  if song_finished_flag == 1
-    debug(`term0 'song finished, starting animation',10)
-    cogstop(6)
-    waitms(1000)
-    cogspin(6, leds.HourAnimation(), @Stack6)
-    cogspin(7, leds.HourAnimation(), @Stack7)
-  
+  repeat until leds.getSongFinish() == 1
+
+  debug(`term0 'song finished, starting animation',10)
+  cogstop(6)
+  waitms(1000)
+  cogspin(6, leds.MinuteAnimation(), @Stack6)
+  cogspin(7, leds.HourAnimation(), @Stack7)
+
