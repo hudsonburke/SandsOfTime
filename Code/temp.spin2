@@ -29,6 +29,8 @@ CON
   ArmEncBotPin = 32
 
   ArmEncTolerance = 100
+  ArmEncCPR = 8192 ' Counts per revolution
+  ArmEncMaxCount = ArmEncCPR - 1
   ExtendEncTolerance = 50
 
   {Motor Constants}
@@ -40,7 +42,7 @@ CON
   Extend_Ki = 0
   Extend_Kd = 0
 
-  Arm_Kp = 9*numBasePeriods/8192
+  Arm_Kp = 9*numBasePeriods/ArmEncCPR ' Scales the Kp based on the number of counts per revolution of the arm encoder and the base period used for driving the motor
   Arm_Ki = 0
   Arm_Kd = 0
 
@@ -113,8 +115,12 @@ OBJ
 
 ' Runs on cog 0
 PUB Main() | minute_i, i , watchdog_triggered
+  {
+  Wait 3 seconds for everything to initialize before starting main loop
+  Probably because we are using pins that interact with flash memory
+  }
+  waitms(3000) 
   debug(`term term0 pos 200 20 size 25 26 textsize 20 color white)
-
 
   {Initialize readers}
   cogspin(1, ReadRTClock(), @Stack1)
@@ -124,15 +130,7 @@ PUB Main() | minute_i, i , watchdog_triggered
   cogspin(2, ReadAbsEncoders(), @Stack2)
   repeat until abs_init == 1
 
-  {
-  repeat i from 1 to NumEnc
-    debug(`term0 'Encoder Current`(i) = `(EncCurPos[i])', 10)
-    debug(`term0 'Encoder SetPoint`(i) = `(EncSetPoint[i])', 10)
-  waitms(1000)
-        }
-
   {Initialize motors}
-
   'initalize and retract the hand
   pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   hand_extend.InitPins(numClockPulses, numBasePeriods)
@@ -151,36 +149,10 @@ PUB Main() | minute_i, i , watchdog_triggered
   hand_spin.InitPins(numClockPulses, numBasePeriods)
   last_flipped_minute := 60
 
-
   {Initialize LEDs}
   cogspin(4, blueorange(), @Stack4)
 
-  'this block comment is old homing scheme for arm:
-  {
-  ' Drive clockwise until it hits the induction sensor
-  debug(`term0 'Homing', 10)
-  waitms(1000)
-  arm.DriveForward(800)
-  ' Hysteresis to account for initial position of 0
-  ' TODO: If starts close to sensor, it will pass it
-  ' TODO: Timeouts
-  repeat until rdpin(ArmEncBotPin) > ArmEncTolerance
-    debug(`term0 'Arm Encoder = `(rdpin(ArmEncBotPin))', 10)
-    waitms(10)
-  repeat until rdpin(ArmEncBotPin) < ArmEncTolerance
-    debug(`term0 'Arm Encoder = `(rdpin(ArmEncBotPin))', 10)
-    waitms(10)
-  arm.Stop()
-  SetArmPos(0)
-  debug(`term0 'Homed', 10)
-  waitms(1000)
-
-   }
-
-
-
   {End Setup}
-
   debug(`term0 'End of Setup', 10)
 
   repeat
@@ -193,7 +165,6 @@ PUB Main() | minute_i, i , watchdog_triggered
       HourglassSeq(minute_i) ' Move the arm to flip the hourglass
     else
       watchdog_triggered := false    'flag variable so we only fix one thing before checking other stuff
-
 
       repeat i from 1 to 12
         if ABS(CalculateAbsError(EncCurPos[i], EncSetPoint[i])) > WatchdogTolerance   'checks one of the encoder, then continues loop
@@ -211,20 +182,8 @@ PUB Main() | minute_i, i , watchdog_triggered
           debug(`term0 'Encoder SetPoint`(i) = `(EncSetPoint[i])', 10)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
-            {
-        else
-          ' Lowest priority: use the arm to point to the hour
-          debug(`term0 '`(hour) :`(minute) :`(second)', 10)
-            repeat i from 1 to NumEnc
-              debug(`term0 'Encoder Current`(i) = `(EncCurPos[i])', 10)
-              debug(`term0 'Encoder SetPoint`(i) = `(EncSetPoint[i])', 10)
 
-                    }
     waitms(200)
-    'debug(`term0 clear)
-      'waitms(100)
-      ' debug(`term0 'Arm Encoder = `(rdpin(ArmEncBotPin))', 10)
-
 
 {{Main Cog Helper Methods}}
 PUB blueorange() | i,j
@@ -398,7 +357,7 @@ pub InitAbsEncoders() | i
   pinh(CLK)
   dirlow(DATA)
 
-  ' 1. QUIET THE BUS: Pull ALL Chip Selects HIGH before doing anything else
+  ' Pull all Chip Selects HIGH before doing anything else
   repeat i from CS0 to CSf
     dirhigh(i)
     pinh(i)
@@ -406,15 +365,8 @@ pub InitAbsEncoders() | i
 
   repeat i from CS0 to CSf
     ReadAbsOnce(i)
-    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0
+    EncSetPoint[i] := abs(512 - EncCurPos[i]) < 256 ? 512 : 0
 
-  {
-  repeat i from CS0 to CSf
-    dirhigh(i)
-    pinh(i)
-    ReadAbsOnce(i)
-    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0    ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
-      }
 pub ReadAbsEncoders() | i
   InitAbsEncoders()
   abs_init := 1
@@ -455,19 +407,15 @@ PUB ReadArmEncoder() | count
   arm.Stop()
 
   debug(`term1 '------------------Triggered---------------', 10)
-  pinfloat(ArmEncBotPin) ' Should reset the count on the pin
-  pinlow(ArmEncBotPin)
+  ClearQuadratureEncoder(ArmEncBotPin)
   count := rdpin(ArmEncBotPin)
   debug(`term1 '`(count)',10)
 
-
   arm_encoder_homed := 1
 
-
   repeat
-    if inb.[IndSensor-32]==0
-      pinfloat(ArmEncBotPin)
-      pinlow(ArmEncBotPin)
+    if rdpin(ArmEncBotPin) == ArmEncCPR
+      ClearQuadratureEncoder(ArmEncBotPin)
       waitms(20)
     count := rdpin(ArmEncBotPin)
     debug(`term1 '`(count)',10)
@@ -476,6 +424,7 @@ PUB ReadArmEncoder() | count
 
 {Pin Helper Methods}
 pri ClearQuadratureEncoder(bot_pin)
+  {Resets the quadrature encoder count on the smart pin by briefly setting it to input and then back to output}
   pinfloat(bot_pin)
   pinlow(bot_pin)
 

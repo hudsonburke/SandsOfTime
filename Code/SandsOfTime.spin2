@@ -141,7 +141,6 @@ PUB Main() | minute_i, i
   waitms(1000)
   arm.DriveForward(500)
   ' Hysteresis to account for initial position of 0
-  ' TODO: If starts close to sensor, it will pass it
   ' TODO: Timeouts
   repeat until arm_pos > ArmEncTolerance
     debug(`term0 'Arm Encoder = `(arm_pos)', 10)
@@ -168,7 +167,7 @@ PUB Main() | minute_i, i
         EncSetPoint[minute_i] := EncSetPoint[minute_i] == 0 ? 512 : 0 ' Flip the setpoint to the opposite position to trigger the hourglass to flip
         debug(`term0 'Flipping Hourglass `(minute_i) in `(60 - second) seconds!', 10)
         HourglassSeq(minute_i) ' Move the arm to flip the hourglass
-      elseif abs CalculateAbsEncError(EncCurPos[i], EncSetPoint[i]) > WatchdogTolerance
+      elseif abs(CalculateAbsEncError(EncCurPos[i], EncSetPoint[i])) > WatchdogTolerance
           ' Second Priority: Check if any hourglasses are out of position and fix them
           debug(`term0 'Watchdog: Correcting Hourglass `(i)', 10)
           HourglassSeq(i)
@@ -178,9 +177,9 @@ PUB Main() | minute_i, i
         repeat i from 1 to NumEnc
           debug(`term0 'Encoder Current`(i) = `(EncCurPos[i])', 10)
           debug(`term0 'Encoder SetPoint`(i) = `(EncSetPoint[i])', 10)
-    waitms(100)
-    SetArmPos(hour_pos[hour])
-    ExtendArm(hour_extension[hour]+/2)
+        waitms(100)
+        SetArmPos(hour_pos[hour])
+        ExtendArm(hour_extension[hour]+/2)
 
 {{Main Cog Helper Methods}}
 PUB blueorange() | i,j
@@ -278,7 +277,7 @@ pub HourglassSeq(i)
 
 pub SetArmPos(set_pos) | error
   error := set_pos - arm_pos
-  repeat while abs error > ArmEncTolerance
+  repeat while abs(error) > ArmEncTolerance
     if error < 0
       error:=error+8192 ' now only spins clockwise to prevent backlash
     arm.Drive(Arm_Kp*error)
@@ -295,7 +294,7 @@ pub ExtendArm(set_pos) | error
         quit
     
     error := set_pos - rdpin(ExtendEncBotPin)
-    if abs error < ExtendEncTolerance
+    if abs(error) < ExtendEncTolerance
       quit
     hand_extend.Drive(error*Extend_Kp)
   hand_extend.Stop()
@@ -314,7 +313,7 @@ pub Retract()
 {{Rotate the hourglass indicated by hr_i to an absolute encoder position given by set_pos}}
 pub RotateHourglass(hr_i, set_pos) | error
   error := CalculateAbsEncError(EncCurPos[hr_i], set_pos)
-  repeat while abs error > HourglassEncTolerance
+  repeat while abs(error) > HourglassEncTolerance
     if error < 0 ' TODO: Currently this will only be positive
       hand_spin.Drive(1000) ' Currently just drives at full speed
     else
@@ -327,7 +326,7 @@ pub RotateHourglass(hr_i, set_pos) | error
 pub CalculateAbsEncError(current, target) : error
   error := target - current
   ' Handles wraparound
-  if abs error > 512
+  if abs(error) > 512
     if error < 0
       error:=error+1024
     else
@@ -337,6 +336,8 @@ pub CalculateAbsEncError(current, target) : error
 
 {{Read clock and handle LCD}}
 pub ReadRTClock()
+  debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
+
   DS3234.InitPins()
   DS3234.SetTime12Hr(30, 58, 11)
   repeat
@@ -344,6 +345,8 @@ pub ReadRTClock()
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes and return
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
+    debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
+    waitms(400) 'slow it down since lowest resulution is 1 second anyway
 
 pub InitAbsEncoders() | i
   dirhigh(CLK)
@@ -355,7 +358,7 @@ pub InitAbsEncoders() | i
   waitms(1)
   repeat i from CS0 to CSf
     ReadAbsOnce(i)
-    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0    ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
+    EncSetPoint[i] := abs(512 - EncCurPos[i]) < 256 ? 512 : 0    ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
 
 pub ReadAbsEncoders() | i
   InitAbsEncoders()
