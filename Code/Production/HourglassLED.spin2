@@ -32,7 +32,7 @@ CON
   magenta        = 255<<8+255                   '%00000000_11111111_11111111
   yellow         = 255<<16+255<<8               '%11111111_11111111_00000000
   chartreuse     = 255<<16+127<<8               '%11111111_01111111_00000000
-  orange         = 165<<16+255<<8               '%10100101_11111111_11010100
+  orange         = 85<<16+255<<8               '%10100101_11111111_11010100
   aquamarine     = 255<<16+127<<8+212           '%11111111_01111111_11010100
   pink           = 192<<16+255<<8+203           '%11000000_11111111_11001011
   turquoise      = 224<<16+64<<8+192            '%11100000_01000000_11000000
@@ -109,7 +109,7 @@ PUB setHourRing(ring)
 'output: index of ring where hour is (0-11)
   global_hour_ring := ring - 1
 
-pub turnEverythingOff()| i,j
+pub turnEverythingOff()
   longfill(@lights,off,RINGS*LEDS_PER_RING) 'Set all values in "lights" array to zero (turning all LEDs off)
  'Print the entire "lights" array to the debug console (for testing purposes)
 
@@ -197,52 +197,46 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
 
 
 PUB HourSong()
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
   turnEverythingOff()
   update()
   waitms(1000)
 
-  TurnOn(blue, 0)
-  
+  Flash(blue, 0, 1)
+  Flash(orange, 8, 1)
+  Flash(blue, 1, 1)
 
-{
-  FadeIn(blue, 0)
-  waitms(song_tempo)
-  FadeIn(orange, 8)
-  waitms(song_tempo)
-  FadeIn(blue, 1)
-  waitms(song_tempo)
+  Flash(orange, 5, 3)
 
-  FadeIn(orange, 5)
-  waitms(song_tempo*2)
-  FadeOut(orange, 5)
-  waitms(song_tempo)
+  Flash(blue, 5, 1)
+  Flash(orange, 1, 1)
+  Flash(blue, 0, 1)
 
-  FadeIn(blue, 5)
-  waitms(song_tempo)
-  FadeIn(orange, 1)
-  waitms(song_tempo)
-  FadeIn(blue, 0)
-  waitms(song_tempo)
+  Flash(orange, 8, 6)
 
-  FadeIn(orange, 8)
-  waitms(song_tempo*5)
-  FadeOut(orange, 8)
-  waitms(song_tempo)
-}
+
+PUB Flash(color, ring_num, wait_count) | i
+    TurnOn(color, ring_num)
+    waitms(song_tempo*wait_count)
+    TurnOn(off, ring_num)
+    waitms(100)
 
 PUB TurnOn(color, ring_num) | i
+  debug(`term0 'hello turn on',10)
   repeat i from 0 to 91
-    led(ring_num, i, color)
+    led(ring_num, i, Intensity(color, 100))
   update()
 
-PUB FadeIn(color, ring_num) | int, i 
+PUB FadeIn(color, ring_num) | int, i
   repeat int from 3 to 20
     repeat i from 0 to 91
       led(ring_num, i*5, Intensity(color, int))
     update()
     waitms(song_fade_time)
 
-PUB FadeOut(color, ring_num) | int, i 
+PUB FadeOut(color, ring_num) | int, i
   repeat int from 20 to 3
     repeat i from 0 to 91
       led(ring_num, i*5, Intensity(color, int))
@@ -625,4 +619,3 @@ PUB change_color_down_end_multi(ring, color_orig, color_new) | i
     led(ring, layer11[i], color_new)
   update()
   waitms(50)
-

@@ -10,6 +10,7 @@ VAR
   {Stacks for Cogs}
   long Stack2[100], Stack3[100], Stack4[100], Stack5[100], Stack6[100], Stack7[100], Stack8[100]
 
+  byte song_finished_flag = 0
 
 OBJ
   leds : "HourglassLED"
@@ -26,17 +27,14 @@ PUB Main()  | minute, hour
 
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-  'debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
-
-  '0 IS 1 O'CLOCK, 1 IS 2 O'CLOCK, ETC
+  debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
 
   leds.turnEverythingOff()
   leds.update()
   waitms(3000)
 
-  leds.HourSong()
 
-{
+
   leds.setMinuteRing(0)
   leds.setHourRing(1)
 
@@ -44,9 +42,28 @@ PUB Main()  | minute, hour
   waitms(1000)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
 
+  waitms(10000)
+  cogspin(5, HourStuff(), @Stack5)
+{
   repeat hour from 1 to 12
     leds.setHourRing(hour)
     repeat minute from 0 to 11
       leds.setMinuteRing(minute)
       waitms(6000)
 }
+
+PUB HourStuff()
+  waitms(1000)
+  
+  cogstop(6)
+  cogstop(7)
+  waitms(1000)
+  cogspin(6, leds.HourSong(), @Stack6)
+
+  if song_finished_flag == 1
+    debug(`term0 'song finished, starting animation',10)
+    cogstop(6)
+    waitms(1000)
+    cogspin(6, leds.HourAnimation(), @Stack6)
+    cogspin(7, leds.HourAnimation(), @Stack7)
+  
