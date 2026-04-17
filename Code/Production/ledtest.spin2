@@ -36,21 +36,17 @@ PUB Main()  | minute, hour
 
 
   leds.setMinuteRing(0)
-  leds.setHourRing(12)
+  leds.setHourRing(1)
 
   cogspin(6, leds.HourAnimation(), @Stack6)
   waitms(1000)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
 
-  leds.turnEverythingOff()
-  leds.update()
-  waitms(1000)
-
   repeat hour from 1 to 12
     leds.setHourRing(hour)
     repeat minute from 0 to 11
       leds.setMinuteRing(minute)
-      waitms(5000)
+      waitms(6000)
 
 
 CON '7 blue green colors

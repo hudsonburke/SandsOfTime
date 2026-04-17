@@ -3,9 +3,9 @@ CON
   LEDS_PER_RING = 92
 
   off_intensity = 25
-  spin_intensity = 50
+  spin_intensity = 70
   hour_intensity = 50
-  minute_intensity = 70
+  minute_intensity = 100
   minute_on_hour_intensity = 100
 
   hour_wait = 50
@@ -13,8 +13,11 @@ CON
 VAR
     long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
 
-    byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
-    byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
+    byte global_minute_ring 'indicates which ring is currently representing the minute hand (1-12)
+    byte global_hour_ring 'indicates which ring is currently representing the hour hand (1-12)
+
+    byte temp_minute_ring
+    byte temp_hour_ring
 
 CON
  'Predefined colors                               green      red      blue
@@ -34,6 +37,10 @@ CON
   realwhite      = 255<<16+200<<8+255           '%11111111_11001000_11111111
   indigo         = 75<<8+130                    '%00000000_01001011_10000010
   violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
+
+  spin_blue     = 70<<16 + 255
+  minute_blue   = 255
+  hour_blue     = 255<<16
 
 pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
   'takes the ring number and the led number within that ring
@@ -91,24 +98,24 @@ PUB setMinuteRing(ring)
 'input: 0-11 (corresponding to minute//5)
 'output: index of ring where ring
   if ring == 0
-    minute_ring := 11
+    global_minute_ring := 11
   else
-    minute_ring := ring - 1
+    global_minute_ring := ring - 1
 
 PUB setHourRing(ring)
 'input: 1-12 (corresponding hour)
 'output: index of ring where hour is (0-11)
-  hour_ring := ring - 1
+  global_hour_ring := ring - 1
 
 pub turnEverythingOff()| i,j
   longfill(@lights,off,RINGS*LEDS_PER_RING) 'Set all values in "lights" array to zero (turning all LEDs off)
  'Print the entire "lights" array to the debug console (for testing purposes)
 
 PUB GetMinuteRing() : ring
-  ring := minute_ring
+  ring := global_minute_ring
 
 PUB GetHourRing() : ring
-  ring := hour_ring
+  ring := global_hour_ring
 
 PUB Intensity(color, intense) : result | r, g, b
     '' Scales a color (0xRRGGBB) or a single value (0-255) by intense (0-255)
@@ -154,44 +161,46 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
   repeat
+    temp_minute_ring := global_minute_ring
+    temp_hour_ring := global_hour_ring
     repeat i_forward from 0 to 91
       repeat ring_num from 0 to 10
       ' 'be brighter on minute ring
-        if ring_num == minute_ring
-          if ring_num == hour_ring
+        if ring_num == temp_minute_ring
+          if ring_num == temp_hour_ring
             if i_forward < 32 'only spin outermost ring
-              led(ring_num, i_forward, Intensity(red, minute_on_hour_intensity))
+              led(ring_num, i_forward, Intensity(hour_blue, minute_on_hour_intensity))
           else
-            led(ring_num, i_forward, Intensity(violet, minute_intensity))
+            led(ring_num, i_forward, Intensity(minute_blue, minute_intensity))
 
         'be white when greater than minute ring
-        elseif ring_num > minute_ring
-          if ring_num == hour_ring
+        elseif ring_num > temp_minute_ring
+          if ring_num == temp_hour_ring
             next
           led(ring_num, i_forward, Intensity(white, off_intensity))
 
         'spin rings before minute ring
-        elseif ring_num < minute_ring
-          if minute_ring == 11
+        elseif ring_num < temp_minute_ring
+          if temp_minute_ring == 11
             led(ring_num, i_forward, Intensity(white, off_intensity))
-          elseif ring_num <> hour_ring
-            led(ring_num, i_forward, Intensity(blue, spin_intensity))
+          elseif ring_num <> temp_hour_ring
+            led(ring_num, i_forward, Intensity(spin_blue, spin_intensity))
 
       'ring 12 (index 11)
-      if minute_ring == 11
-        if minute_ring == hour_ring
+      if temp_minute_ring == 11
+        if temp_minute_ring == temp_hour_ring
           if i_forward < 32 'only spin outermost ring
-            led(11, i_forward, Intensity(red, minute_on_hour_intensity))
+            led(11, i_forward, Intensity(hour_blue, minute_on_hour_intensity))
         else
-          led(11, i_forward, Intensity(violet, minute_intensity))
+          led(11, i_forward, Intensity(minute_blue, minute_intensity))
       else
-        led(11, i_forward, Intensity(blue, spin_intensity))
+        led(11, i_forward, Intensity(spin_blue, spin_intensity))
       update()
 
     repeat i_backward from 91 to 0
       repeat ring_num from 0 to 11
-        if ring_num == hour_ring
-          if ring_num == minute_ring
+        if ring_num == temp_hour_ring
+          if ring_num == temp_minute_ring
             if i_backward < 32
               led(ring_num, i_backward,0)
 
@@ -208,11 +217,11 @@ pub HourAnimation() | i
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
   repeat
-    if hour_ring == minute_ring
+    if temp_hour_ring == temp_minute_ring
       repeat i from 0 to orange_count - 1
-        MinuteOnHourAnimation(hour_ring, hour_color_cycle[i])
+        MinuteOnHourAnimation(temp_hour_ring, hour_color_cycle[i])
     else
-      HourAnimation_general(hour_ring)
+      HourAnimation_general(temp_hour_ring)
 
 DAT 'arranging the circle into rows
   layer1   long  9,10,11,12,13,14,15
