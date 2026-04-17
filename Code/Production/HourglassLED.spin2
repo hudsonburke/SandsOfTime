@@ -1,6 +1,13 @@
 CON
-    RINGS = 12
-    LEDS_PER_RING = 92
+  RINGS = 12
+  LEDS_PER_RING = 92
+
+  spin_intensity = 50
+  hour_intensity = 50
+  minute_intensity = 70
+  minute_on_hour_intensity = 100
+
+  hour_wait = 50
 
 VAR
     long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
@@ -79,10 +86,24 @@ EndAddr   long 0                 'Stores the final Hub RAM address of "lights" a
           end                    'End in-line assembly program
 
 PUB setMinuteRing(ring)
-  minute_ring := ring
+  if ring > 12
+    minute_ring := 11
+  elseif ring < 1
+    minute_ring := 0
+  else
+    minute_ring := ring - 1
 
 PUB setHourRing(ring)
-  hour_ring := ring
+  if ring > 12
+    hour_ring := 11
+  elseif ring < 1
+    hour_ring := 0
+  else
+    hour_ring := ring - 1
+
+pub turnEverythingOff()| i,j
+  longfill(@lights,off,RINGS*LEDS_PER_RING) 'Set all values in "lights" array to zero (turning all LEDs off)
+ 'Print the entire "lights" array to the debug console (for testing purposes)
 
 PUB GetMinuteRing() : ring
   ring := minute_ring
@@ -90,13 +111,21 @@ PUB GetMinuteRing() : ring
 PUB GetHourRing() : ring
   ring := hour_ring
 
-PUB Intensity(color,intense) : newvalue              ''Changes the intensity (0-255) of a color
-  intense := 0 #> intense <# 255                     ' Clamp intensity value to be between 0 and 255
-  newvalue:=(
-    (((color>>16)*intense)/255)<<16) + ...
-    ((((color>>8 & $FF)*intense)/255)<<8) + ...
-    (((color & $FF)*intense)/255
-    )
+PUB Intensity(color, intense) : result | r, g, b
+    '' Scales a color (0xRRGGBB) or a single value (0-255) by intense (0-255)
+    intense := 0 #> intense <# 255
+
+    ' Apply Gamma Correction (Optional but highly recommended)
+    ' This makes "2" actually look dim to the human eye.
+    intense := (intense * intense) / 255
+
+    if color > $FF                             ' If input is a packed RGB long
+        r := ((color >> 16) & $FF) * intense / 255
+        g := ((color >> 8) & $FF) * intense / 255
+        b := (color & $FF) * intense / 255
+        return (r << 16) | (g << 8) | b        ' Return packed long
+    else                                       ' If input is just a single 0-255 value
+        return (color * intense) / 255         ' Return single byte for PWM
 
 CON '12 blues for ring colors (dark blue to light blue)
   blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
@@ -127,28 +156,57 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
 
   repeat
     repeat i_forward from 0 to 91
-      repeat ring_num from 0 to 12
-        if ring_num == hour_ring          'skip hour ring
-          if i_forward < 32 'only spin outermost ring
-            led(ring_num, i_forward, Intensity(blues[ring_num], 255))
-          next
-        else if ring_num > minute_ring    'skip other rings that are after the minute
-          next
-          'todo: these rings might need to be set to off rather than just skipped
-        else if ring_num == minute_ring   'double brightness of minute ring
-          led(ring_num, i_forward, Intensity(blues[ring_num], 255))
-        else 'all other rings spin
-          led(ring_num, i_forward, Intensity(blues[ring_num], 127))
+      repeat ring_num from 0 to 11
+        'when not ring 0 (min 5)...
+        if minute_ring <> 0
+          'when ring is minute ring, increase brightness
+          if ring_num == minute_ring
+            if ring_num == hour_ring
+              if i_forward < 32 'only spin outermost ring
+                led(ring_num, i_forward, Intensity(blue, minute_on_hour_intensity))
+            else
+              led(ring_num, i_forward, Intensity(blue, minute_intensity))
+
+          'when ring is hour ring, skip
+          elseif ring_num == hour_ring
+            next
+
+          'skip rings after minute ring unless it is hour 12 ring
+          elseif ring_num > minute_ring
+            if ring_num == 11 'minute 0 ring (ring 11) would be active though
+              led(ring_num, i_forward, Intensity(blue, spin_intensity))
+            'todo: these rings might need to be set to off rather than just skipped
+
+          'spin rings before minute ring
+          else 'all other rings spin
+            led(ring_num, i_forward, Intensity(blue, spin_intensity))
+
+       'otherwise make 12 o'clock ring active
+        else
+          led(11, i_forward, Intensity(blue, minute_intensity)) 'bright hour 12 (minute 0) ring
       update()
 
     repeat i_backward from 91 to 0
-      repeat ring_num from 1 to 12
-        if ring_num == hour_ring 'skip hour ring
-          if i_backward < 32 'only spin outermost ring
-            led(ring_num, i_backward, 0)
+      repeat ring_num from 0 to 11
+        if ring_num == hour_ring
           next
-        led(ring_num,i_backward,0) 'turn off all rings
+        else
+          led(ring_num,i_backward,0) 'turn off all rings
       update()
+
+pub HourAnimation() | i
+  ' animation for ring representing the hour
+  ' either color cycle
+  ' or outside ring spins (controlled in minute animation) while inner ring does color cycle
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+  repeat
+    if hour_ring == minute_ring
+      repeat i from 0 to orange_count - 1
+        MinuteOnHourAnimation(hour_ring, hour_color_cycle[i])
+    else
+      HourAnimation_general(hour_ring)
 
 DAT 'arranging the circle into rows
   layer1   long  9,10,11,12,13,14,15
@@ -163,54 +221,140 @@ DAT 'arranging the circle into rows
   layer10  long  0,55,54,53,52,51,24
   layer11  long  25,26,27,28,29,30,31
 
+CON 'orange values
+  orange1 = 30<<16 + 255<<8
+  orange2 = 60<<16 + 255<<8
+  orange3 = 80<<16 + 255<<8
+  orange4 = 100<<16 + 255<<8
+  orange5 = 125<<16 + 255<<8
+  orange6 = 145<<16 + 255<<8
+  orange7 = 165<<16 + 255<<8
+  orange8 = 185<<16 + 255<<8
+  orange9 = 205<<16 + 255<<8
+  orange10 = 255<<16 + 255<<8
+
+  orange_count = 18
+
+
+DAT
+  'hour_color_cycle long red, orange, yellow, green, blue, violet, cyan, magenta, white, pink
+  hour_color_cycle long orange1, orange2, orange3, orange4, orange5, orange6, orange7, orange8, orange9, orange10, orange9, orange8, orange7, orange6, orange5, orange4, orange3, orange2
+
+PUB HourAnimation_general(ring_num) | i
+  repeat i from 0 to orange_count-1
+    change_color_down(ring_num, hour_color_cycle[i])
+    'todo quit early if hour (or minute) changes
 
 PUB change_color_down(ring, color) | i
   'changes color in the ring from top to bottom
   repeat i from 0 to 6
-    led(ring, layer1[i], color)
-  update()
-  waitms(50)
+    led(ring, layer1[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 6
-    led(ring, layer2[i], color)
-  update()
-  waitms(50)
+    led(ring, layer2[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 6
-    led(ring, layer3[i], color)
-  update()
-  waitms(50)
+    led(ring, layer3[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 9
-    led(ring, layer4[i], color)
-  update()
-  waitms(50)
+    led(ring, layer4[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 10
-    led(ring, layer5[i], color)
-  update()
-  waitms(50)
+    led(ring, layer5[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 7
-    led(ring, layer6[i], color)
-  update()
-  waitms(50)
+    led(ring, layer6[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 10
-    led(ring, layer7[i], color)
-  update()
-  waitms(50)
+    led(ring, layer7[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 9
-    led(ring, layer8[i], color)
-  update()
-  waitms(50)
+    led(ring, layer8[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 6
-    led(ring, layer9[i], color)
-  update()
-  waitms(50)
+    led(ring, layer9[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 6
-    led(ring, layer10[i], color)
-  update()
-  waitms(50)
+    led(ring, layer10[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
   repeat i from 0 to 6
-    led(ring, layer11[i], color)
-  update()
-  waitms(50)
+    led(ring, layer11[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
 
+DAT 'arranging the circle into rows
+  layer2min   long  39,40,41,42,43
+  layer3min   long  38,44,61,62,63
+  layer4min   long  37,45,60,64,75,76,77,78
+  layer5min   long  36,46,59,65,74,79,86,87,88
+  layer6min   long  35,47,58,66,85,89
+  layer7min   long  34,48,57,67,73,80,84,91,90
+  layer8min   long  33,49,56,68,72,83,82,81
+  layer9min   long  32,50,71,70,69
+  layer10min  long  55,54,53,52,51
+
+pub MinuteOnHourAnimation(ring, color) | i
+    'changes color in the ring from top to bottom
+  'layer1 (skip)
+  waitms(hour_wait)
+
+  repeat i from 0 to 4
+    led(ring, layer2min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 4
+    led(ring, layer3min[i], Intensity(color, hour_intensity) )
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 7
+    led(ring, layer4min [i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 8
+    led(ring, layer5min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 5
+    led(ring, layer6min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 8
+    led(ring, layer7min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 7
+    led(ring, layer8min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 4
+    led(ring, layer9min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  repeat i from 0 to 4
+    led(ring, layer10min[i], Intensity(color, hour_intensity))
+  'update()
+  waitms(hour_wait)
+
+  'layer11
+  waitms(hour_wait)
 
 PUB change_color_down_begin_multi(ring, color_orig, color_new) | i
   'changes color in the ring from top to bottom
@@ -427,92 +571,4 @@ PUB change_color_down_end_multi(ring, color_orig, color_new) | i
   repeat i from 0 to 6 'layer11
     led(ring, layer11[i], color_new)
   update()
-  waitms(50)
-
-
-DAT
-  hour_color_cycle long red, orange, yellow, green, blue, violet, cyan, magenta, white, pink
-
-PUB HourAnimation_general(ring_num) | i
-  repeat i from 0 to 9
-    change_color_down(ring_num, hour_color_cycle[i])
-    'todo quit early if hour (or minute) changes
-
-
-pub HourAnimation() '| prev_ring
-  ' animation for ring representing the hour
-  ' either color cycle
-  ' or outside ring spins (controlled in minute animation) while inner ring does color cycle
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-
-  repeat
-    if hour_ring == minute_ring
-      MinuteOnHourAnimation(hour_ring)
-    else
-      HourAnimation_general(hour_ring)
-
-
-DAT 'arranging the circle into rows
-  layer2min   long  39,40,41,42,43
-  layer3min   long  38,44,61,62,63
-  layer4min   long  37,45,60,64,75,76,77,78
-  layer5min   long  36,46,59,65,74,79,86,87,88
-  layer6min   long  35,47,58,66,85,89
-  layer7min   long  34,48,57,67,73,80,84,91,90
-  layer8min   long  33,49,56,68,72,83,82,81
-  layer9min   long  32,50,71,70,69
-  layer10min  long  55,54,53,52,51
-pub MinuteOnHourAnimation(ring, color) | i
-    'changes color in the ring from top to bottom
-
-  'layer1 (skip)
-  waitms(50)
-
-  repeat i from 0 to 4
-    led(ring, layer2[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 4
-    led(ring, layer3[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 7
-    led(ring, layer4[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 8
-    led(ring, layer5[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 5
-    led(ring, layer6[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 8
-    led(ring, layer7[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 7
-    led(ring, layer8[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 4
-    led(ring, layer9[i], color)
-  update()
-  waitms(50)
-
-  repeat i from 0 to 4
-    led(ring, layer10[i], color)
-  update()
-  waitms(50)
-
-  'layer11
   waitms(50)
