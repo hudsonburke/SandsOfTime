@@ -31,16 +31,13 @@ pub InitPins(numClockPulses, numBasePeriods) | x
   basePeriods := numBasePeriods
   pinstart(PWM, p_oe+p_pwm_triangle, x, 0) 'Start PWM smartpin
 
-  dirhigh(DIR)
   pinl(DIR)
   ' May want to provide optional NC
-  dirhigh(BRAKE)
   pinl(BRAKE)
-  dirhigh(SLP)
   pinh(SLP) ' Active low
 
   if FAULT <> -1
-    dirlow(FAULT)
+    pinf(FAULT)
 
   if CS <> -1
     ' Set up CS pin as ADC to check voltage output indicating current draw
@@ -85,15 +82,3 @@ pub Wake()
 
 pub ReadCurrent() : value
   value := analog.read()
-
-pri dirhigh(pin)
-  if pin > 31
-    dirb.[pin-32]~~
-  else
-    dira.[pin]~~
-
-pri dirlow(pin)
-  if pin > 31
-    dirb.[pin-32]~
-  else
-    dira.[pin]~

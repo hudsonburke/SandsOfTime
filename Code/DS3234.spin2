@@ -47,14 +47,13 @@ pri SPIWrite(value) | i
 '*** Clock Functions ***
 
 pub InitPins()
-  dirhigh(SS)
-  dirlow(MISO)
-  dirhigh(MOSI)
+  pinf(MISO)
+  dirhigh(MOSI) 'TODO: Look into whether these should start high or low
   dirhigh(SCLK)
   pinh(SS)
 
   if SQW <> -1
-    dirlow(SQW)
+    pinf(SQW)
 
 {{Gets raw time data from registers seconds through year $00-$06}}
 pub GetTime()  | i      ''Refresh time[0] through time[6] values
