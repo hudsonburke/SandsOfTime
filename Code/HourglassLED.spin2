@@ -153,7 +153,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
     temp_hour_ring := global_hour_ring
     repeat i_forward from 0 to 91
       repeat ring_num from 0 to 10
-      ' 'be brighter on minute ring
+        'be brighter on minute ring
         if ring_num == temp_minute_ring
           if ring_num == temp_hour_ring
             if i_forward < 32 'only spin outermost ring
@@ -165,12 +165,14 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
         elseif ring_num > temp_minute_ring
           if ring_num == temp_hour_ring
             next
-          led(ring_num, i_forward, Intensity(white, off_intensity))
+          else
+            led(ring_num, i_forward, Intensity(white, off_intensity))
 
         'spin rings before minute ring
         elseif ring_num < temp_minute_ring
           if temp_minute_ring == 11
-            led(ring_num, i_forward, Intensity(white, off_intensity))
+            if ring_num <> temp_hour_ring
+              led(ring_num, i_forward, Intensity(white, off_intensity))
           elseif ring_num <> temp_hour_ring
             led(ring_num, i_forward, Intensity(spin_blue, spin_intensity))
 
@@ -225,12 +227,17 @@ PUB HourSong()
 PUB Flash(color, ring_num, wait_count) | i
     TurnOn(color, ring_num)
     waitms(song_tempo*wait_count)
-    TurnOn(off, ring_num)
+    TurnOnRing(ring_num)
     waitms(100)
 
 PUB TurnOn(color, ring_num) | i
   repeat i from 0 to 91
     led(ring_num, i, Intensity(color, 100))
+  update()
+
+PUB TurnOffRing(ring_num) | i
+  repeat i from 0 to 91
+    led(ring_num, i 0)
   update()
 
 PUB FadeIn(color, ring_num) | int, i

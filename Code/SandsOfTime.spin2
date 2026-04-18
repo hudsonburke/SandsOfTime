@@ -235,7 +235,7 @@ pub ReadRTClock() |minute_divide
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
 
   DS3234.InitPins()
-  DS3234.SetTime12Hr(30, 58, 10)
+  DS3234.SetTime12Hr(45, 59, 10)
   repeat
     ' Read the time from the chip
     DS3234.GetTime()
