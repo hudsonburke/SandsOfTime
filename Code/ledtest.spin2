@@ -54,7 +54,7 @@ PUB HourStuff()
   cogstop(6)
   cogstop(7)
   waitms(1000)
-  cogspin(6, leds.HourSong(), @Stack6)
+  cogspin(6, leds.HourSong(2), @Stack6)
 
   repeat until leds.getSongFinish() == 1
 
@@ -63,4 +63,3 @@ PUB HourStuff()
   waitms(1000)
   cogspin(6, leds.MinuteAnimation(), @Stack6)
   cogspin(7, leds.HourAnimation(), @Stack7)
-

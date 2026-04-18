@@ -144,11 +144,6 @@ PUB Intensity(color, intense) : result | r, g, b
                   '
 {Animations}
 PUB MinuteAnimation() | i_forward, i_backward, ring_num
-  'spirals non-active rings in and out
-  'before minute - blue gradient
-  'after minute - blank
-  'not really sure what these next two lines are for?
-  'todo: lights is an array from ws2812b driver
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 

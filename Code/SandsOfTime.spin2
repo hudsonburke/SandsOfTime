@@ -95,7 +95,7 @@ PUB Main() | minute_i, i
   cogspin(6, leds.HourAnimation(), @Stack6)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
   waitms(1000)
-  cogspin(5, CheckHourChange(), @Stack5)
+  cogspin(3, CheckHourChange(), @Stack3)
 
 {
   abs_init := 0
@@ -169,14 +169,19 @@ PUB OnTheHour(hour_num)
   leds.update()
   waitms(1000)
 
-  cogspin(6, leds.HourSong(hour_num), @Stack6)
-
-  repeat until leds.getSongFinish()
-    waitms(500)
-  cogstop(6)
-  waitms(3000)
   cogspin(6, leds.HourAnimation(), @Stack6)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
+
+
+  cogspin(6, leds.HourSong(hour_num), @Stack6)
+
+  repeat until leds.getSongFinish() == 1
+
+  debug(`term0 'song finished, starting animation',10)
+  cogstop(6)
+  waitms(3000)
+  'cogspin(6, leds.MinuteAnimation(), @Stack6)
+  'cogspin(7, leds.HourAnimation(), @Stack7)
 
 PUB CheckHourChange() : result
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
