@@ -235,17 +235,15 @@ pub ReadRTClock() |minute_divide
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
 
   DS3234.InitPins()
-  DS3234.SetTime12Hr(45, 59, 10)
+  DS3234.SetTime12Hr(45, 59, 11) 's m hr
   repeat
     ' Read the time from the chip
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes and return
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
 
-    leds.setHourRing(hour//12)
+    leds.setHourRing(hour)
     leds.setMinuteRing(minute/5)
-    minute_divide := minute/5
-    debug(`term0 '`(minute_divide)',10)
     debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
     waitms(400) 'slow it down since lowest resulution is 1 second anyway
 
