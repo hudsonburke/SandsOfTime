@@ -6,11 +6,11 @@ CON
   spin_intensity = 70
   hour_intensity = 50
   minute_intensity = 100
-  minute_on_hour_intensity = 100
+  minute_on_hour_intensity = 70
 
   hour_wait = 50
   song_fade_time = 10
-  song_tempo = 500
+  song_tempo = 100
 
 VAR
     long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
@@ -209,20 +209,34 @@ PUB HourSong()
   update()
   waitms(1000)
 
-  Flash(blue, 0, 1)
-  Flash(orange, 8, 1)
-  Flash(blue, 1, 1)
+  FadeIn(blue, 0)
+  FadeOutSlow(blue, 0)
+  waitms(100)
+  FadeIn(orange, 8)
+  FadeOutSlow(orange, 8)
+  waitms(100)
+  FadeIn(blue, 1)
+  FadeOutSlow(blue, 1)
+  waitms(100)
 
-  Flash(orange, 5, 3)
+  FadeIn(orange, 5)
+  FadeOutFast(orange,5)
 
-  Flash(blue, 5, 1)
-  Flash(orange, 1, 1)
-  Flash(blue, 0, 1)
+  FadeIn(blue, 5)
+  FadeOutSlow(blue, 5)
+  waitms(100)
+  FadeIn(orange, 1)
+  FadeOutSlow(orange, 1)
+  waitms(100)
+  FadeIn(blue, 0)
+  FadeOutSlow(blue, 0)
+  waitms(100)
 
-  Flash(orange, 8, 6)
+  FadeIn(orange, 8)
+  waitms(song_tempo)
+  FadeOutFast(orange,8)
 
   song_finished_flag := 1
-
 
 PUB Flash(color, ring_num, wait_count) | i
     TurnOn(color, ring_num)
@@ -241,18 +255,58 @@ PUB TurnOffRing(ring_num) | i
   update()
 
 PUB FadeIn(color, ring_num) | int, i
-  repeat int from 3 to 20
+  repeat int from 5 to 25
     repeat i from 0 to 91
-      led(ring_num, i*5, Intensity(color, int))
+      led(ring_num, i, Intensity(color, int*4))
     update()
-    waitms(song_fade_time)
 
-PUB FadeOut(color, ring_num) | int, i
-  repeat int from 20 to 3
+PUB FadeOutSlow(color, ring_num) | int, i
+  repeat int from 10 to 1
     repeat i from 0 to 91
-      led(ring_num, i*5, Intensity(color, int))
+      led(ring_num, i, Intensity(color, int*10))
     update()
-    waitms(song_fade_time*5)
+
+PUB FadeOutFast(color, ring_num) | int, i
+  repeat int from 100 to 15
+    repeat i from 0 to 91
+      led(ring_num, i, Intensity(color, int))
+    update()
+
+PUB HourChime(color, hour_num) | chime, int, i
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+
+  repeat int from 6 to 50
+    repeat i from 0 to 91
+      led(11, i, Intensity(color, int*2))
+    update()
+  repeat int from 50 to 6
+    repeat i from 0 to 91
+      led(11, i, Intensity(color, int*2))
+    update()
+
+  if hour_num > 0
+    repeat chime from 0 to hour_num-1
+      ChimeIn(color, chime)
+      ChimeOut(color, chime)
+
+PUB ChimeIn(color, ring_num) | int, i, ring
+  repeat int from 8 to 50
+    repeat i from 0 to 91
+      repeat ring from 0 to ring_num
+        led(ring, i, Intensity(color, int*2))
+    repeat i from 0 to 91
+      led(11, i, Intensity(color, int*2))
+    update()
+PUB ChimeOut(color, ring_num) | int, i, ring
+  repeat int from 50 to 8
+    repeat i from 0 to 91
+      repeat ring from 0 to ring_num
+        led(ring, i, Intensity(color, int*2))
+    repeat i from 0 to 91
+      led(11, i, Intensity(color, int*2))
+    update()
 
 PUB setSongFinish(finished)
   song_finished_flag := finished
