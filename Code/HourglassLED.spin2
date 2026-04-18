@@ -215,7 +215,7 @@ PUB HourSong(hour_num)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
   setSongFinish(0)
-
+  {
   FadeIn(blue, 0)
   FadeOutSlow(blue, 0)
   waitms(100)
@@ -242,10 +242,10 @@ PUB HourSong(hour_num)
   FadeIn(orange, 8)
   waitms(song_tempo)
   FadeOutFast(orange,8)
-
+  }
   HourChime(127<<16+255, hour_num)
 
-  song_finished_flag := 1
+  setSongFinish(1)
 
 PUB Flash(color, ring_num, wait_count) | i
     TurnOn(color, ring_num)
@@ -286,6 +286,7 @@ PUB HourChime(color, hour_num) | chime, int, i
     repeat chime from 0 to hour_num-1
       ChimeIn(color, chime)
       ChimeOut(color, chime)
+      debug(`term0 '`(chime)',10
 
 PUB ChimeIn(color, ring_num) | int, i, ring
   repeat int from 0 to 50
