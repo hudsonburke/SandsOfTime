@@ -30,10 +30,14 @@ CON
 
   {Control Constants}
   Extend_Kp = 6, Extend_Ki = 0, Extend_Kd = 0
+  Extend_Dt = 10, Extend_IntegralWindow = 100, Extend_MaxIntegral = 1000
 
   Arm_Kp = 9*numBasePeriods/ArmEncCPR, Arm_Ki = 0, Arm_Kd = 0
+  Arm_Dt = 10, Arm_IntegralWindow = 100, Arm_MaxIntegral = 1000
 
   Spin_Kp = 2, Spin_Ki = 0, Spin_Kd = 0
+  Spin_Dt = 10, Spin_IntegralWindow = 100, Spin_MaxIntegral = 1000
+
 
 VAR
   {Stacks for Cogs}
