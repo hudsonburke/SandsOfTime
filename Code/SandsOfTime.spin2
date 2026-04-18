@@ -92,9 +92,10 @@ PUB Main() | minute_i, i
   leds.update()
   waitms(1000)
 
-  cogspin(6, leds.HourChime(127<<16+255, 2), @Stack6)
+  cogspin(6, leds.HourAnimation(), @Stack6)
+  cogspin(7, leds.MinuteAnimation(), @Stack7)
   waitms(1000)
-  'cogspin(7, leds.MinuteAnimation(), @Stack7)
+  cogspin(5, CheckHourChange(), @Stack5)
 
 {
   abs_init := 0
@@ -161,6 +162,30 @@ PUB Main() | minute_i, i
 }
 
 {{Main Cog Helper Methods}}
+PUB OnTheHour(hour_num)
+  cogstop(6)
+  cogstop(7)
+  leds.turnEverythingOff()
+  leds.update()
+  waitms(1000)
+
+  cogspin(6, leds.HourSong(hour_num), @Stack6)
+
+  repeat until leds.getSongFinish()
+  cogstop(6)
+  waitms(1000)
+  cogspin(6, leds.HourAnimation(), @Stack6)
+  cogspin(7, leds.MinuteAnimation(), @Stack7)
+
+PUB CheckHourChange() : result
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+  repeat
+    repeat until leds.getHourChange()
+      waitms(1000)
+    OnTheHour(5)
+
 
 {Helper method for sequence to flip an hourglass given by its index}
 pub HourglassSeq(i)
@@ -235,7 +260,7 @@ pub ReadRTClock() |minute_divide
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
 
   DS3234.InitPins()
-  DS3234.SetTime12Hr(45, 0, 12) 's m hr
+  DS3234.SetTime12Hr(45, 57, 11) 's m hr
   repeat
     ' Read the time from the chip
     DS3234.GetTime()

@@ -22,6 +22,7 @@ VAR
     byte temp_hour_ring
 
     byte song_finished_flag
+    byte hour_change_flag
 
 CON
  'Predefined colors                               green      red      blue
@@ -122,6 +123,9 @@ PUB GetMinuteRing() : ring
 PUB GetHourRing() : ring
   ring := global_hour_ring
 
+PUB getHourChange() : result
+  return hour_change_flag
+
 PUB Intensity(color, intense) : result | r, g, b
     '' Scales a color (0xRRGGBB) or a single value (0-255) by intense (0-255)
     intense := 0 #> intense <# 255
@@ -148,9 +152,15 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
+  hour_change_flag := 0
+
   repeat
     temp_minute_ring := global_minute_ring
-    temp_hour_ring := global_hour_ring
+    if temp_hour_ring <> global_hour_ring
+      temp_hour_ring := global_hour_ring
+      hour_change_flag := 1
+    else
+      hour_change_flag := 0
     repeat i_forward from 0 to 91
       repeat ring_num from 0 to 10
         'be brighter on minute ring
@@ -200,14 +210,11 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
       update()
 
 
-
-PUB HourSong()
+PUB HourSong(hour_num)
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
-  turnEverythingOff()
-  update()
-  waitms(1000)
+  setSongFinish(0)
 
   FadeIn(blue, 0)
   FadeOutSlow(blue, 0)
@@ -235,6 +242,8 @@ PUB HourSong()
   FadeIn(orange, 8)
   waitms(song_tempo)
   FadeOutFast(orange,8)
+
+  HourChime(127<<16+255, hour_num)
 
   song_finished_flag := 1
 
@@ -273,39 +282,22 @@ PUB FadeOutFast(color, ring_num) | int, i
     update()
 
 PUB HourChime(color, hour_num) | chime, int, i
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-
-
-  repeat int from 6 to 50
-    repeat i from 0 to 91
-      led(11, i, Intensity(color, int*2))
-    update()
-  repeat int from 50 to 6
-    repeat i from 0 to 91
-      led(11, i, Intensity(color, int*2))
-    update()
-
   if hour_num > 0
     repeat chime from 0 to hour_num-1
       ChimeIn(color, chime)
       ChimeOut(color, chime)
 
 PUB ChimeIn(color, ring_num) | int, i, ring
-  repeat int from 8 to 50
+  repeat int from 0 to 50
     repeat i from 0 to 91
       repeat ring from 0 to ring_num
         led(ring, i, Intensity(color, int*2))
-    repeat i from 0 to 91
-      led(11, i, Intensity(color, int*2))
     update()
 PUB ChimeOut(color, ring_num) | int, i, ring
-  repeat int from 50 to 8
+  repeat int from 50 to 0
     repeat i from 0 to 91
       repeat ring from 0 to ring_num
         led(ring, i, Intensity(color, int*2))
-    repeat i from 0 to 91
-      led(11, i, Intensity(color, int*2))
     update()
 
 PUB setSongFinish(finished)
