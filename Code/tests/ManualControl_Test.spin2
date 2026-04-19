@@ -1,0 +1,163 @@
+CON
+  _clkfreq = 300_000_000                                                  'Standard clock frequency = 160 MHz
+
+  {Limit Switch Constants}
+  IndSensor = 36
+
+  {Quadrature Encoder Constants}
+  ArmEncBotPin = 32, ArmEncTopPin = 33
+  ' CPR = Counts per revolution
+  ArmEncCPR = 8192, ArmEncMaxCount = ArmEncCPR - 1
+  ArmEncTolerance = 25
+
+  Arm_Kp = 9*numBasePeriods/ArmEncCPR, Arm_Ki = 0, Arm_Kd = 0
+  Arm_Dt = 10, Arm_IntegralWindow = 100, Arm_MaxIntegral = 1000
+
+  {Limit Switch Pins}
+  LSRetract = 38
+  LSExtend = 37
+
+  LSDebounceTime = 50 ' ms to wait after detecting a limit switch for it to stabilize and be read again
+
+  {Quadrature Encoder Pins}
+  ExtendEncTopPin = 35
+  ExtendEncBotPin = 34
+  Extend_Kp = 6, Extend_Ki = 0, Extend_Kd = 0
+  ExtendEncTolerance = 50
+
+
+  {Motor Constants}
+  numClockPulses = 10
+  numBasePeriods = 1000
+
+  LEFT_ARROW = 1
+  RIGHT_ARROW = 2
+  UP_ARROW = 3
+  DOWN_ARROW = 4
+  SPACEBAR = 32
+  ENTER = 13
+
+
+VAR
+  long control_key
+  byte spinning
+OBJ
+  arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=150
+  hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=0
+  hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
+
+
+pub Main()
+  debug(`term term0 pos 200 20 size 25 10 textsize 24 color white)
+  hand_extend.InitPins(numClockPulses, numBasePeriods)
+  hand_extend.BrakeOn()
+  pinf(LSRetract)
+
+  pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
+  hand_spin.InitPins(numClockPulses, numBasePeriods)
+  hand_spin.BrakeOn()
+  spinning := 0
+
+  pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
+  arm.InitPins(numClockPulses, numBasePeriods)
+
+  debug(`term controlTerm pos 900 20 size 50 10 textsize 24 color white)
+  debug(`controlTerm 'Manual Control Enabled', 10)
+  debug(`controlTerm 'Use right arrow key to rotate arm clockwise and left arrow key to rotate arm counterclockwise', 10)
+  debug(`controlTerm 'Use up arrow key to extend arm and down arrow key to retract arm', 10)
+  debug(`controlTerm 'Use space bar to stop and start hand spinner', 10)
+  repeat
+    debug(`controlTerm `pc_key(@control_key))
+    case control_key
+      LEFT_ARROW: arm.Drive(-225)
+      RIGHT_ARROW: arm.Drive(225)
+      UP_ARROW: hand_extend.Drive(1000)
+      DOWN_ARROW: hand_extend.Drive(-1000)
+      ENTER:
+        Retract(1000)
+        HomeArm()
+        ExtendArm(4000)
+        Retract(500)
+        ClearQuadratureEncoder(ExtendEncBotPin)
+      SPACEBAR:
+        if spinning == 0
+          hand_spin.Drive(1000)
+          spinning := 1
+        else
+          hand_spin.Stop()
+          spinning := 0
+      0:
+        arm.Stop()
+        hand_extend.Stop()
+    debug(`term0 'Arm Encoder = `(GetArmPos())', 10)
+    debug(`term0 'Extend Encoder = `(rdpin(ExtendEncBotPin))', 10)
+    debug(`term0 clear)
+
+
+pub GetArmPos() : arm_pos
+  arm_pos := rdpin(ArmEncBotPin) & ArmEncMaxCount ' Mask to 13 bits since the encoder rolls over every 8192 counts
+
+pub HomeArm() | speed, direction
+  debug(`term0 'Homing', 10)
+  pinfloat(IndSensor)
+  direction := 1
+  repeat speed from 500 to 150 step 175
+    debug(`term0 'Direction = `(direction), Speed = `(speed)', 10)
+    arm.Drive(direction*speed)
+    repeat until pinr(IndSensor) == 0
+    repeat until pinr(IndSensor) == 1
+    ClearQuadratureEncoder(ArmEncBotPin)
+    direction := direction * -1
+    arm.Stop()
+    waitms(500)
+  debug(`term0 'Homed', 10)
+
+pub SetArmPos(set_pos) | error
+  error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
+  repeat while abs(error) > ArmEncTolerance
+    arm.Drive(Arm_Kp*error)
+    error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
+  arm.Stop()
+
+{
+Calculates and returns the direction (positive or negative) and distance from the current encoder
+count to the target; handles wraparound by always returning the shortest distance to the target
+}
+pub CalculateEncoderError(current, target, resolution) : error
+  error := target - current
+  if abs(error) > resolution/2
+    if error < 0
+      error:=error+resolution
+    else
+      error:=error-resolution
+
+pub ExtendArm(set_pos) | error
+  ' TODO: Add safety check to prevent pinching fingers
+  repeat
+    if pinr(LSExtend) == 1
+      waitms(LSDebounceTime)
+      if pinr(LSExtend) == 1
+        quit
+    error := set_pos - rdpin(ExtendEncBotPin)
+    if abs(error) < ExtendEncTolerance
+      quit
+    hand_extend.Drive(error*Extend_Kp)
+  hand_extend.Stop()
+
+pub Retract(speed)
+  ' Drive the arm backward until LSRetr act reads 1
+  if speed == 0
+    speed := 1000
+  hand_extend.DriveBackward(speed)
+  repeat
+    if pinr(LSRetract) == 1
+      waitms(LSDebounceTime)
+      if pinr(LSRetract) == 1
+        quit
+  hand_extend.Stop()
+
+{Pin Helper Methods}
+pri ClearQuadratureEncoder(bot_pin)
+  {Resets the quadrature encoder count on the smart pin by briefly setting it to input and then back to output}
+  pinfloat(bot_pin)
+  pinlow(bot_pin)

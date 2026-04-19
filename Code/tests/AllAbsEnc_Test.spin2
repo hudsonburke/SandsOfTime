@@ -1,14 +1,15 @@
 CON
   _clkfreq = 300_000_000
 
-  {Absolute Encoder Constants}
+  {Hourglass Absolute Encoders}
   CS0 = 1    ' Start of encoder chip select pin range
   CSf = 12    ' End of encoder chip select pin range
   NumEnc = CSf - CS0 + 1
-  CLK = 0
-  DATA = 13
-  AbsEncTolerance = 3 ' In encoder counts
-
+  CLK = 0, DATA = 13
+  HourglassEncTolerance = 3 ' In encoder counts
+  HourglassEncResolution = 1024 ' In counts per revolution
+  WatchdogTolerance = 15
+  HourglassEncDebugDelay = 200 ' ms to wait between printing encoder values in the abs encoder cog
 
 VAR
   byte abs_init
@@ -17,35 +18,38 @@ VAR
   word EncCurPos[NumEnc+1], EncSetPoint[NumEnc+1] ' Zero is a dummy so that index corresponds to hour
 
 pub Main() | i
-  debug(`term term0 pos 200 20 size 25 26 textsize 24 color white)
   abs_init := 0
   cogspin(2, ReadAbsEncoders(), @Stack2)
   repeat until abs_init == 1
   repeat
-    repeat i from 1 to NumEnc
-      debug(`term0 'Encoder Current`(i) = `(EncCurPos[i])', 10)
-      debug(`term0 'Encoder SetPoint`(i) = `(EncSetPoint[i])', 10)
-    debug(`term0 clear)
-
 
 {{Read all absolute encoder positions via SPI into the EncCurPos list}}
 
 pub InitAbsEncoders() | i
-  dirhigh(CLK)
   pinh(CLK)
-  dirlow(DATA)
+  pinfloat(DATA)
   repeat i from CS0 to CSf
     dirhigh(i)
-    pinh(i)
+    pinh(i) ' Set all Chip Selects HIGH to start with
+  'pinh(CS0..CSf)  ' Pull all Chip Selects HIGH before doing anything else
+  waitms(1)
+  ' Dynamically set the setpoint to closest vertical position
+  repeat i from CS0 to CSf
     ReadAbsOnce(i)
-    EncSetPoint[i] := abs (512 - EncCurPos[i]) < 256 ? 512 : 0    ' Dynamically set the setpoint to whatever vertical position the hourglass is closest to
+    EncSetPoint[i-CS0+1] := abs(HourglassEncResolution/2 - EncCurPos[i]) < HourglassEncResolution/4 ? HourglassEncResolution/2 : 0
 
 pub ReadAbsEncoders() | i
+  debug(`term absEncoders pos 900 100 size 25 26 textsize 20 color white)
   InitAbsEncoders()
   abs_init := 1
+  debug(`absEncoders 'Initialized Absolute Encoders, starting read loop...', 10)
   repeat
     repeat i from CS0 to CSf
       ReadAbsOnce(i)
+      debug(`absEncoders 'Encoder Current `(i - CS0 + 1) = `(EncCurPos[i-CS0+1])', 10) ' Currently the math here doesn't matter because the pins line up with the indices
+      debug(`absEncoders 'Encoder SetPoint `(i - CS0 + 1) = `(EncSetPoint[i-CS0+1])', 10)
+    debug(`absEncoders `dly(HourglassEncDebugDelay))
+    debug(`absEncoders clear)
 
 pub ReadAbsOnce(i) | value
   pinl(i) ' Chip Select
@@ -65,6 +69,7 @@ pub ReadAbsOnce(i) | value
   pinh(i)
   waitus(1)
 
+
 {Pin Helper Methods}
 pri dirhigh(pin)
   if pin > 31
@@ -77,35 +82,3 @@ pri dirlow(pin)
     dirb.[pin-32]~
   else
     dira.[pin]~
-
-' pub ReadAbsEncoders() | i, value , EncoderNumber, CurrentPosition
-'   debug(`term term1 pos 200 20 size 25 13 textsize 24 color white)
-'   dirhigh(CLK)
-'   pinh(CLK)
-'   dirlow(DATA)
-'   repeat i from CS0 to CSf
-'     dirhigh(i)
-'     pinh(i)
-'   repeat
-'     repeat i from CS0 to CSf
-'       pinl(i) ' Chip Select
-'       waitus(1) ' Propeller 2 fast 2 furious
-'       pinl(CLK)
-'       waitus(1)
-'       value:=0
-'       repeat 16   ' Read 16 bits (top 10 are position)
-'         pinh(CLK)
-'         waitus(1)
-'         value := (value << 1) | pinr(DATA)
-'         pinl(CLK)
-'         waitus(1)
-'       CurrentPosition := value >> 6
-'       EncCurPos[i-CS0] := CurrentPosition
-'       EncoderNumber := i-CS0+1
-'       debug(`term1 'Encoder `(EncoderNumber) = `(CurrentPosition)', 10)
-'       pinh(CLK)
-'       waitus(1)
-'       pinh(i)
-'       waitus(1)
-'     waitms(200)
-'     debug(`term1 clear)

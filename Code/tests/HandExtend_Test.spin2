@@ -36,6 +36,27 @@ PUB TestHandExtend()
     Retract()
     waitms(2000)
 
+pub ExtendArm(set_pos) | error, previous_error, integral, dt, start_time, derivative
+  ' TODO: Add safety check to prevent pinching fingers
+  previous_error := set_pos - rdpin(ExtendEncBotPin)
+  integral := 0
+  start_time := getct()
+  repeat
+    if pinr(LSExtend) == 1
+      waitms(LSDebounceTime)
+      if pinr(LSExtend) == 1
+        quit
+    error := set_pos - rdpin(ExtendEncBotPin)
+    if abs(error) < ExtendEncTolerance
+      quit
+    integral := integral + error
+    dt := (getct() - start_time)/CLKFREQ
+    derivative := (error - previous_error)/dt
+    hand_extend.Drive(error*Extend_Kp + Extend_Ki*integral + Extend_Kd*derivative)
+    previous_error := error
+    start_time := getct()
+  hand_extend.Stop()
+
 pub Retract()
   ' Drive the arm backward until LSRetract reads 1
   hand_extend.DriveBackward(1000)
@@ -47,13 +68,6 @@ pub Retract()
   ClearQuadratureEncoder(ExtendEncBotPin)
   hand_extend.Stop()
 
-pub ExtendArm(set_pos) | error
-  error := set_pos - rdpin(ExtendEncBotPin)
-  ' TODO: Add safety check to prevent pinching fingers
-  repeat while abs error > ExtendEncTolerance and pinr(LSExtend) == 0
-    hand_extend.Drive(error*Extend_Kp)
-    error := set_pos - rdpin(ExtendEncBotPin)
-  hand_extend.Stop()
 
 pri ClearQuadratureEncoder(bot_pin)
   pinfloat(bot_pin)

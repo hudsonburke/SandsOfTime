@@ -26,15 +26,13 @@ pub InitPins(numClockPulses, numBasePeriods) | x
   pinstart(RPWM, p_oe+p_pwm_triangle, x, 0)
   pinstart(LPWM, p_oe+p_pwm_triangle, x, 0)
 
-  dirhigh(R_EN)
   pinl(R_EN)
-  dirhigh(L_EN)
   pinl(L_EN)
 
   if R_IS <> -1
-    dirlow(R_IS)
+    pinf(R_IS)
   if L_IS <> -1
-    dirlow(L_IS)
+    pinf(L_IS)
 
 pub DriveBackward(speed)
   pinh(L_EN)
@@ -73,15 +71,3 @@ pub Stop()
   wypin(LPWM, 0)
 
 ' TODO: Implement alarm outputs
-
-pri dirhigh(pin)
-  if pin > 31
-    dirb.[pin-32]~~
-  else
-    dira.[pin]~~
-
-pri dirlow(pin)
-  if pin > 31
-    dirb.[pin-32]~
-  else
-    dira.[pin]~
