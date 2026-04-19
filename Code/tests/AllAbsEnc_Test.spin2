@@ -39,7 +39,7 @@ pub InitAbsEncoders() | i
     EncSetPoint[i-CS0+1] := abs(HourglassEncResolution/2 - EncCurPos[i]) < HourglassEncResolution/4 ? HourglassEncResolution/2 : 0
 
 pub ReadAbsEncoders() | i
-  debug(`term absEncoders pos 900 100 size 25 26 textsize 20 color white)
+  debug(`term absEncoders pos 900 100 size 30 26 textsize 20 color white)
   InitAbsEncoders()
   abs_init := 1
   debug(`absEncoders 'Initialized Absolute Encoders, starting read loop...', 10)

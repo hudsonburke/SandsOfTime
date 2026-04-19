@@ -1,12 +1,12 @@
 CON
-  _clkfreq = 300_000_000        
-  
+  _clkfreq = 300_000_000
+
   {Hourglass Absolute Encoders}
   CS0 = 1    ' Start of encoder chip select pin range
   CSf = 12    ' End of encoder chip select pin range
   NumEnc = CSf - CS0 + 1
   CLK = 0, DATA = 13
-  HourglassEncTolerance = 3 ' In encoder counts
+  HourglassEncTolerance = 5 ' In encoder counts
   HourglassEncResolution = 1024 ' In counts per revolution
   WatchdogTolerance = 15
   HourglassEncDebugDelay = 200 ' ms to wait between printing encoder values in the abs encoder cog
@@ -17,12 +17,12 @@ CON
 
   {Quadrature Encoders}
   ExtendEncBotPin = 34, ExtendEncTopPin = 35
-  ExtendEncTolerance = 50
+  ExtendEncTolerance = 25
 
   ArmEncBotPin = 32, ArmEncTopPin = 33
   ' CPR = Counts per revolution
   ArmEncCPR = 8192, ArmEncMaxCount = ArmEncCPR - 1
-  ArmEncTolerance = 45 ' Based on backlash
+  ArmEncTolerance = 30 ' Based on backlash
 
   {Motor Constants}
   numClockPulses = 10
@@ -48,12 +48,13 @@ VAR
   byte abs_init
 
   {Data}
+  long arm_set_pos
   long second, minute, hour, day, date, month, year ' Store the information from the DS3234 Clock
   word EncCurPos[NumEnc+1], EncSetPoint[NumEnc+1] ' Zero is a dummy so that index corresponds to hour
 
 OBJ
   DS3234 : "DS3234"        | SS=19, MOSI=18, MISO=17, SCLK=16, SQW=-1
-  arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
+  arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=150
   hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
   leds : "HourglassLED"    | FIRST_RING_PIN = 48
@@ -65,18 +66,21 @@ hour_pos long 0, 689, 1339, 2038, 2730, 3411, 4082, 4786, 5463, 6113, 6800, 7493
 
 ' how far arm needs to extend to reach in quadrature encoder counts (starting and ending at hour 12)
  '                    12     1     2     3     4     5     6     7     8     9    10    11    12
-hour_extension long 6909, 6826, 6886, 6802, 6740, 6596, 6556, 6661, 6603, 6748, 6851, 6779, 6909
+hour_extension long 6939, 6896, 6886, 6802, 6740, 6596, 6556, 6661, 6703, 6848, 6951, 6909, 6939
 
-PUB Main() | minute_i, i
+PUB Main() | minute_i, i, watchdog_triggered
   {
   Wait 3 seconds for everything to initialize before starting main loop
   Probably because we are using pins that interact with flash memory
   }
   waitms(3000)
+  leds.Initialize()
+
   debug(`term term0 pos 200 20 size 25 26 textsize 24 color white)
 
   {Initialize readers}
-  cogspin(1, FakeTime(0, 0, 12, 60), @Stack1)
+  'cogspin(1, FakeTime(0, 8, 4, 10), @Stack1)
+  cogspin(1, ReadRTClock(), @Stack1)
 
   abs_init := 0
   cogspin(2, ReadAbsEncoders(), @Stack2)
@@ -93,23 +97,22 @@ PUB Main() | minute_i, i
 
   {Full Homing Sequence}
   Retract(1000)
+  ClearQuadratureEncoder(ExtendEncBotPin)
   HomeArm()
   ExtendArm(4000)
-  Retract(500)
+  Retract(650)
   ClearQuadratureEncoder(ExtendEncBotPin)
 
   hand_spin.InitPins(numClockPulses, numBasePeriods)
   hand_spin.BrakeOn()
   last_flipped_minute := 60
 
-  leds.Initialize()
   cogspin(3, leds.HourAnimation(), @Stack3)
   cogspin(4, leds.MinuteAnimation(), @Stack4)
 
   {End Setup}
   debug(`term0 'End of Setup', 10)
   repeat
-    repeat i from 1 to 12
       if (minute +// 5) == 4 && second +>= 50 && minute <> last_flipped_minute
         ' Top Priority: Check if it's time to flip an hourglass
         last_flipped_minute := minute
@@ -117,15 +120,22 @@ PUB Main() | minute_i, i
         EncSetPoint[minute_i] := EncSetPoint[minute_i] == 0 ? 512 : 0 ' Flip the setpoint to the opposite position to trigger the hourglass to flip
         debug(`term0 'Flipping Hourglass `(minute_i) in `(60 - second) seconds!', 10)
         HourglassSeq(minute_i) ' Move the arm to flip the hourglass
-      elseif abs(CalculateEncoderError(EncCurPos[i], EncSetPoint[i])) > WatchdogTolerance
-          ' Second Priority: Check if any hourglasses are out of position and fix them
-          debug(`term0 'Watchdog: Correcting Hourglass `(i)', 10)
-          HourglassSeq(i)
       else
+        watchdog_triggered := false    'flag variable so we only fix one thing before checking other stuff
+        repeat i from 1 to 12 ' TODO: Start from current hour
+          if abs(CalculateEncoderError(EncCurPos[i], EncSetPoint[i], HourglassEncResolution)) > WatchdogTolerance
+            ' Second Priority: Check if any hourglasses are out of position and fix them
+            watchdog_triggered := true
+            debug(`term0 'Watchdog: Correcting Hourglass `(i)', 10)
+            HourglassSeq(i)
+            quit
+        if watchdog_triggered
+          next
         ' Lowest priority: use the arm to point to the hour
         debug(`term0 'Pointing to Hour `(i)', 10)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
+
 
 {{Main Cog Helper Methods}}
 PUB OnTheHour(hour_num)
@@ -144,9 +154,15 @@ pub GetArmPos() : arm_pos
   arm_pos := rdpin(ArmEncBotPin) & ArmEncMaxCount ' Mask to 13 bits since the encoder rolls over every 8192 counts
 
 pub SetArmPos(set_pos) | error
+  if abs(CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR))> ArmEncTolerance
+    Retract(1000)
   error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
   repeat while abs(error) > ArmEncTolerance
-    arm.Drive(Arm_Kp*error)
+    if error < 0
+      error := error + 8192
+    ' arm.Drive(Arm_Kp*error <# -300)
+    ' else
+    arm.Drive(200 #> Arm_Kp*error)
     error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
   arm.Stop()
 
@@ -184,13 +200,12 @@ pub HomeArm() | speed, direction
   debug(`term0 'Homed', 10)
 
 {Sequence to flip an hourglass given by its index}
-pub HourglassSeq(i)
-  Retract()
+pub HourglassSeq(i) | error
   SetArmPos(hour_pos[i])
-  hand_spin.DriveForward(1000) ' TODO: Make it spin the correct direction
+  error := CalculateEncoderError(EncCurPos[i], EncSetPoint[i], HourglassEncResolution)
+  hand_spin.Drive(Spin_Kp*error)
   ExtendArm(hour_extension[i])
   RotateHourglass(i, EncSetPoint[i])
-  Retract()
 
 pub ExtendArm(set_pos) | error
   ' TODO: Add safety check to prevent pinching fingers
@@ -226,9 +241,11 @@ pub ExtendArmPID(set_pos) | error, previous_error, integral, derivative, target_
     target_cnt := getct() + (CLKFREQ / 100) ' Force a 10ms loop time
   hand_extend.Stop()
 
-pub Retract()
+pub Retract(speed)
   ' Drive the arm backward until LSRetract reads 1
-  hand_extend.DriveBackward(1000)
+  if speed == 0
+    speed := 1000
+  hand_extend.DriveBackward(speed)
   repeat
     if pinr(LSRetract) == 1
       waitms(LSDebounceTime)
@@ -240,7 +257,11 @@ pub Retract()
 pub RotateHourglass(hr_i, set_pos) | error
   error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   repeat while abs(error) > HourglassEncTolerance
-    hand_spin.Drive(Spin_Kp*error)
+    if error < 0 ' TODO: Currently this will only be positive
+      hand_spin.Drive(1000) ' Currently just drives at full speed
+    else
+      hand_spin.Drive(-1000)
+    'hand_spin.Drive(Spin_Kp*error)
     error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   hand_spin.Stop()
 
@@ -260,7 +281,7 @@ pub RotateHourglassPID(hr_i, set_pos) | error, previous_error, integral, derivat
   hand_spin.Stop()
 
 {
-Calculates and returns the direction (positive or negative) and distance from the current encoder 
+Calculates and returns the direction (positive or negative) and distance from the current encoder
 count to the target; handles wraparound by always returning the shortest distance to the target
 }
 pub CalculateEncoderError(current, target, resolution) : error
@@ -277,13 +298,14 @@ pub CalculateEncoderError(current, target, resolution) : error
 pub ReadRTClock()
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   DS3234.InitPins()
-  DS3234.SetTime12Hr(45, 57, 2) 's m hr
+  ' DS3234.SetTime12Hr(0, 10, 6) ' USE TO SET TIME
   repeat
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes and return
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
 
     'send hour and minute to led object
+    ' TODO: probably move this to main orchestration loop
     leds.setHourRing(hour)
     leds.setMinuteRing(minute/5)
 
@@ -298,25 +320,25 @@ pub InitAbsEncoders() | i, index
   repeat i from CS0 to CSf
     dirhigh(i)
     pinh(i)
-  'pinh(CS0..CSf)  ' Pull all Chip Selects HIGH before doing anything else
+  'pinh(CSf..CS0)  ' Pull all Chip Selects HIGH before doing anything else
   waitms(1)
   ' Dynamically set the setpoint to closest vertical position
   repeat i from CS0 to CSf
     ReadAbsOnce(i)
     index := i - CS0 + 1
-    EncSetPoint[index] := abs(HourglassEncResolution/2 - EncCurPos[index]) < HourglassEncResolution/4 ? HourglassEncResolution/2 : 0  
-  
+    EncSetPoint[index] := abs(HourglassEncResolution/2 - EncCurPos[index]) < HourglassEncResolution/4 ? HourglassEncResolution/2 : 0
+
 pub ReadAbsEncoders() | i, index
-  debug(`term absEncoders pos 900 100 size 25 26 textsize 20 color white)
+  debug(`term absEncoders pos 900 100 size 30 26 textsize 20 color white)
   InitAbsEncoders()
   abs_init := 1
   repeat
     repeat i from CS0 to CSf
       ReadAbsOnce(i)
       index := i - CS0 + 1
-      debug(`absEncoders 'Encoder Current `(index) = `(EncCurPos[index])', 10) ' Currently the math here doesn't matter because the pins line up with the indices
+      debug(`absEncoders 'Encoder Current `(index) = `(EncCurPos[index])', 10)
       debug(`absEncoders 'Encoder SetPoint `(index) = `(EncSetPoint[index])', 10)
-    debug(`absEncoders `dly(HourglassEncDebugDelay))
+    'debug(`absEncoders `dly(HourglassEncDebugDelay))
     debug(`absEncoders clear)
 
 pub ReadAbsOnce(i) | value
@@ -352,6 +374,8 @@ pub FakeTime(fakesecond, fakeminute, fakehour, speed)
     if fakehour >= 13
       fakehour := 1
     second, minute, hour := fakesecond, fakeminute, fakehour
+    leds.setHourRing(hour)
+    leds.setMinuteRing(minute/5)
     debug(`clockTerm 'Fake Time: `(hour) : `(minute) : `(second)', 10)
 
 {Pin Helper Methods}

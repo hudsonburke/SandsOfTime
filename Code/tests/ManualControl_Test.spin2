@@ -25,7 +25,6 @@ CON
   Extend_Kp = 6, Extend_Ki = 0, Extend_Kd = 0
   ExtendEncTolerance = 50
 
-
   {Motor Constants}
   numClockPulses = 10
   numBasePeriods = 1000
@@ -36,18 +35,28 @@ CON
   DOWN_ARROW = 4
   SPACEBAR = 32
   ENTER = 13
+  TAB = 9
 
 
 VAR
   long control_key
   byte spinning
+
 OBJ
   arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=150
-  hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=0
+  hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=500
   hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
 
+dat
+' where arm needs to be to reach a certain hourglass (starting and ending at hour 12)
+'             12   1     2     3     4     5     6     7     8     9    10    11 12
+hour_pos long 0, 689, 1339, 2038, 2730, 3411, 4082, 4786, 5463, 6113, 6800, 7493, 0
 
-pub Main()
+' how far arm needs to extend to reach in quadrature encoder counts (starting and ending at hour 12)
+ '                    12     1     2     3     4     5     6     7     8     9    10    11    12
+hour_extension long 6909, 6826, 6886, 6802, 6740, 6596, 6556, 6661, 6603, 6748, 6851, 6779, 6909
+
+pub Main() | hour
   debug(`term term0 pos 200 20 size 25 10 textsize 24 color white)
   hand_extend.InitPins(numClockPulses, numBasePeriods)
   hand_extend.BrakeOn()
@@ -75,6 +84,7 @@ pub Main()
       DOWN_ARROW: hand_extend.Drive(-1000)
       ENTER:
         Retract(1000)
+        ClearQuadratureEncoder(ExtendEncBotPin)
         HomeArm()
         ExtendArm(4000)
         Retract(500)
@@ -86,6 +96,13 @@ pub Main()
         else
           hand_spin.Stop()
           spinning := 0
+      TAB:
+        repeat hour from 1 to 12
+          SetArmPos(hour_pos[hour])
+          waitms(3000)
+
+          debug(`term0 clear)
+
       0:
         arm.Stop()
         hand_extend.Stop()
@@ -111,6 +128,18 @@ pub HomeArm() | speed, direction
     arm.Stop()
     waitms(500)
   debug(`term0 'Homed', 10)
+{
+pub SetArmPos(set_pos) | error
+  error := set_pos - GetArmPos()
+  'error := set_pos - arm_pos
+  repeat while abs error > ArmEncTolerance
+    if error < 0
+      error:=error+8192 ' now only spins clockwise to prevent backlash
+    arm.Drive(Arm_Kp*error)
+    'error := set_pos - rdpin(ArmEncBotPin)
+    error := set_pos - GetArmPos()
+  arm.Stop()
+}
 
 pub SetArmPos(set_pos) | error
   error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
@@ -130,6 +159,7 @@ pub CalculateEncoderError(current, target, resolution) : error
       error:=error+resolution
     else
       error:=error-resolution
+
 
 pub ExtendArm(set_pos) | error
   ' TODO: Add safety check to prevent pinching fingers

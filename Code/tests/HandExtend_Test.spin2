@@ -27,20 +27,17 @@ OBJ
 PUB TestHandExtend()
 
   {Initialize and retract motor}
-  pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   hand_extend.InitPins(numClockPulses, numBasePeriods)
-  Retract()
+  Retract(1000)
+  pinstart(ExtendEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
   repeat
     ExtendArm(2000)
     waitms(2000)
-    Retract()
+    Retract(1000)
     waitms(2000)
 
-pub ExtendArm(set_pos) | error, previous_error, integral, dt, start_time, derivative
+pub ExtendArm(set_pos) | error
   ' TODO: Add safety check to prevent pinching fingers
-  previous_error := set_pos - rdpin(ExtendEncBotPin)
-  integral := 0
-  start_time := getct()
   repeat
     if pinr(LSExtend) == 1
       waitms(LSDebounceTime)
@@ -49,23 +46,19 @@ pub ExtendArm(set_pos) | error, previous_error, integral, dt, start_time, deriva
     error := set_pos - rdpin(ExtendEncBotPin)
     if abs(error) < ExtendEncTolerance
       quit
-    integral := integral + error
-    dt := (getct() - start_time)/CLKFREQ
-    derivative := (error - previous_error)/dt
-    hand_extend.Drive(error*Extend_Kp + Extend_Ki*integral + Extend_Kd*derivative)
-    previous_error := error
-    start_time := getct()
+    hand_extend.Drive(error*Extend_Kp)
   hand_extend.Stop()
 
-pub Retract()
+pub Retract(speed)
   ' Drive the arm backward until LSRetract reads 1
-  hand_extend.DriveBackward(1000)
+  if speed == 0
+    speed := 1000
+  hand_extend.DriveBackward(speed)
   repeat
     if pinr(LSRetract) == 1
       waitms(LSDebounceTime)
       if pinr(LSRetract) == 1
         quit
-  ClearQuadratureEncoder(ExtendEncBotPin)
   hand_extend.Stop()
 
 
