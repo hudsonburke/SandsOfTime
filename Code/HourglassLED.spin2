@@ -1,6 +1,9 @@
 CON
   RINGS = 12
   LEDS_PER_RING = 92
+  TOTAL_LEDS = RINGS * LEDS_PER_RING
+
+  FIRST_RING_PIN = 48 'Pin number of the first LED ring (the rest are consecutive)
 
   off_intensity = 25
   spin_intensity = 70
@@ -13,7 +16,7 @@ CON
   song_tempo = 100
 
 VAR
-    long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
+    long lights[TOTAL_LEDS] 'total array of all leds for all 12 rings
 
     byte global_minute_ring 'indicates which ring is currently representing the minute hand (1-12)
     byte global_hour_ring 'indicates which ring is currently representing the hour hand (1-12)
@@ -35,9 +38,17 @@ CON
   minute_blue   = 255
   hour_blue     = 255
 
+pub null()
+
+pub Initialize()
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=FIRST_RING_PIN           'Specify first output pin as pr1 (which PASM can read)
+  turnEverythingOff()
+  update()
+
 PUB led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
   'takes the ring number and the led number within that ring
-  lights[(ring*92)+LEDaddress]:=color
+  lights[(ring*LEDS_PER_RING)+LEDaddress]:=color
 
 PUB update() 'General-purpose Registers Used: pr0=address of "lights" variable, pr1=pin (these are passed to PASM from the Spin2 code)
   pinl((pr1+12)..pr1)            'Send Low reset signal to WS2812B LEDs
@@ -102,12 +113,12 @@ PUB setHourRing(ring)
 
 pub turnEverythingOff()
   longfill(@lights,off,RINGS*LEDS_PER_RING) 'Set all values in "lights" array to zero (turning all LEDs off)
- 'Print the entire "lights" array to the debug console (for testing purposes)
 
 PUB setHourChange(change)
   hour_change_flag := change
 
 PUB getHourChange() : result
+  'result := hour_change_flag
   return hour_change_flag
 
 PUB Intensity(color, intense) : result | r, g, b
@@ -129,7 +140,7 @@ PUB Intensity(color, intense) : result | r, g, b
 {Animations}
 PUB MinuteAnimation() | i_forward, i_backward, ring_num
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  pr1:=FIRST_RING_PIN           'Specify first output pin as pr1 (which PASM can read)
 
   'default: hour is not changing
   hour_change_flag := 0
@@ -202,7 +213,7 @@ PUB MinuteAnimation() | i_forward, i_backward, ring_num
 PUB HourSong(hour_num)
   '"plays" a song and lights up certain rings
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  pr1:=FIRST_RING_PIN           'Specify first output pin as pr1 (which PASM can read)
 
   'set song finished flag to false at beginning of song
   setSongFinish(0)
@@ -290,7 +301,7 @@ pub HourAnimation() | i
   ' either color cycle
   ' or outside ring spins (controlled in minute animation) while inner ring does color cycle
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  pr1:=FIRST_RING_PIN           'Specify first output pin as pr1 (which PASM can read)
 
   'color cycle entire ring if hour
   'color cycle inner rings if aligned

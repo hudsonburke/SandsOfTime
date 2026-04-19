@@ -41,7 +41,7 @@ CON
 
 VAR
   {Stacks for Cogs}
-  long Stack1[100], Stack2[100], Stack3[100], Stack4[100], Stack5[100], Stack6[100], Stack7[100]
+  long Stack1[100], Stack2[100], Stack3[100], Stack4[100]
 
   {Flags}
   byte last_flipped_minute
@@ -56,7 +56,7 @@ OBJ
   arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
   hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
-  leds : "HourglassLED"
+  leds : "HourglassLED"    | FIRST_RING_PIN = 48
 
 dat
 ' where arm needs to be to reach a certain hourglass (starting and ending at hour 12)
@@ -77,11 +77,6 @@ PUB Main() | minute_i, i
 
   {Initialize readers}
   cogspin(1, FakeTime(0, 0, 12, 60), @Stack1)
-
-  {pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-  leds.turnEverythingOff()
-  leds.update()
 
   abs_init := 0
   cogspin(2, ReadAbsEncoders(), @Stack2)
@@ -107,6 +102,10 @@ PUB Main() | minute_i, i
   hand_spin.BrakeOn()
   last_flipped_minute := 60
 
+  leds.Initialize()
+  cogspin(3, leds.HourAnimation(), @Stack3)
+  cogspin(4, leds.MinuteAnimation(), @Stack4)
+
   {End Setup}
   debug(`term0 'End of Setup', 10)
   repeat
@@ -127,8 +126,6 @@ PUB Main() | minute_i, i
         debug(`term0 'Pointing to Hour `(i)', 10)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
-}
-
 
 {{Main Cog Helper Methods}}
 PUB OnTheHour(hour_num)
@@ -136,9 +133,6 @@ PUB OnTheHour(hour_num)
   'leds.setHourChange(0)
 
 PUB CheckHourChange() : result
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
-  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
-
   repeat
     'repeat until leds.getHourChange()
     '  waitms(1000)
@@ -243,18 +237,25 @@ pub Retract()
   hand_extend.Stop()
 
 {Rotate the hourglass indicated by hr_i to an absolute encoder position given by set_pos}
-pub RotateHourglass(hr_i, set_pos) | error, previous_error, integral, dt, start_time, derivative
+pub RotateHourglass(hr_i, set_pos) | error
+  error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
+  repeat while abs(error) > HourglassEncTolerance
+    hand_spin.Drive(Spin_Kp*error)
+    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
+  hand_spin.Stop()
+
+pub RotateHourglassPID(hr_i, set_pos) | error, previous_error, integral, derivative, target_cnt
   error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   previous_error := error
   integral := 0
-  start_time := getct()
+  target_cnt := getct() + (CLKFREQ / 100) ' Force a 10ms loop time
   repeat while abs(error) > HourglassEncTolerance
-    dt := (getct() - start_time)/CLKFREQ
-    derivative := (error - previous_error)/dt
+    derivative := (error - previous_error)
     integral := integral + error
     hand_spin.Drive(Spin_Kp*error + Spin_Ki*integral + Spin_Kd*derivative)
     previous_error := error
-    start_time := getct()
+    waitct(target_cnt)
+    target_cnt := getct() + (CLKFREQ / 100) ' Force a 10ms loop time
     error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   hand_spin.Stop()
 
@@ -273,7 +274,7 @@ pub CalculateEncoderError(current, target, resolution) : error
 {{Cog Methods}}
 
 {{Read clock and handle LCD}}
-pub ReadRTClock() |minute_divide
+pub ReadRTClock()
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   DS3234.InitPins()
   DS3234.SetTime12Hr(45, 57, 2) 's m hr
@@ -336,15 +337,8 @@ pub ReadAbsOnce(i) | value
   pinh(i)
   waitus(1)
 
-PUB ReadArmEncoder()
-  dirlow(IndSensor)
-  ' Start the quadrature encoder
-  pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
-  repeat
-    arm_pos := rdpin(ArmEncBotPin)
-    if pinr(IndSensor) == 0 and arm_pos <> 0 'will hopefully prevent slamming
-      ClearQuadratureEncoder(ArmEncBotPin)
 pub FakeTime(fakesecond, fakeminute, fakehour, speed)
+  ' For testing purposes, allows you to set the time manually by writing to the variables that would normally be set by the clock reading cog
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   repeat
     waitms(1000/speed)
@@ -359,9 +353,6 @@ pub FakeTime(fakesecond, fakeminute, fakehour, speed)
       fakehour := 1
     second, minute, hour := fakesecond, fakeminute, fakehour
     debug(`clockTerm 'Fake Time: `(hour) : `(minute) : `(second)', 10)
-
-    ' For testing purposes, allows you to set the time manually by writing to the variables that would normally be set by the clock reading cog
-
 
 {Pin Helper Methods}
 pri ClearQuadratureEncoder(bot_pin)
@@ -380,4 +371,3 @@ pri dirlow(pin)
     dirb.[pin-32]~
   else
     dira.[pin]~
-
