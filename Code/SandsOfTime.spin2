@@ -56,6 +56,7 @@ OBJ
   arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
   hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
+  leds : "HourglassLED"
 
 dat
 ' where arm needs to be to reach a certain hourglass (starting and ending at hour 12)
@@ -75,7 +76,12 @@ PUB Main() | minute_i, i
   debug(`term term0 pos 200 20 size 25 26 textsize 24 color white)
 
   {Initialize readers}
-  cogspin(1, ReadRTClock(), @Stack1)
+  cogspin(1, FakeTime(0, 0, 12, 60), @Stack1)
+
+  {pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  leds.turnEverythingOff()
+  leds.update()
 
   abs_init := 0
   cogspin(2, ReadAbsEncoders(), @Stack2)
@@ -104,7 +110,7 @@ PUB Main() | minute_i, i
   {End Setup}
   debug(`term0 'End of Setup', 10)
   repeat
-    repeat i from 1 to 12 
+    repeat i from 1 to 12
       if (minute +// 5) == 4 && second +>= 50 && minute <> last_flipped_minute
         ' Top Priority: Check if it's time to flip an hourglass
         last_flipped_minute := minute
@@ -121,9 +127,25 @@ PUB Main() | minute_i, i
         debug(`term0 'Pointing to Hour `(i)', 10)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
+}
 
 
 {{Main Cog Helper Methods}}
+PUB OnTheHour(hour_num)
+  leds.HourSong(hour)
+  'leds.setHourChange(0)
+
+PUB CheckHourChange() : result
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+  repeat
+    'repeat until leds.getHourChange()
+    '  waitms(1000)
+    OnTheHour(hour)
+
+
+{Helper method for sequence to flip an hourglass given by its index}
 pub GetArmPos() : arm_pos
   arm_pos := rdpin(ArmEncBotPin) & ArmEncMaxCount ' Mask to 13 bits since the encoder rolls over every 8192 counts
 
@@ -251,13 +273,19 @@ pub CalculateEncoderError(current, target, resolution) : error
 {{Cog Methods}}
 
 {{Read clock and handle LCD}}
-pub ReadRTClock()
+pub ReadRTClock() |minute_divide
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   DS3234.InitPins()
+  DS3234.SetTime12Hr(45, 57, 2) 's m hr
   repeat
     DS3234.GetTime()
-    ' Convert it to usable numbers for our purposes
-    second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()'
+    ' Convert it to usable numbers for our purposes and return
+    second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
+
+    'send hour and minute to led object
+    leds.setHourRing(hour)
+    leds.setMinuteRing(minute/5)
+
     debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
     waitms(400) 'slow it down since lowest resolution is 1 second anyway
     ' TODO: Use the square wave output to read the time more efficiently and accurately
@@ -307,6 +335,33 @@ pub ReadAbsOnce(i) | value
   waitus(1)
   pinh(i)
   waitus(1)
+
+PUB ReadArmEncoder()
+  dirlow(IndSensor)
+  ' Start the quadrature encoder
+  pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
+  repeat
+    arm_pos := rdpin(ArmEncBotPin)
+    if pinr(IndSensor) == 0 and arm_pos <> 0 'will hopefully prevent slamming
+      ClearQuadratureEncoder(ArmEncBotPin)
+pub FakeTime(fakesecond, fakeminute, fakehour, speed)
+  debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
+  repeat
+    waitms(1000/speed)
+    fakesecond := fakesecond + 1
+    if fakesecond >= 60
+      fakesecond := 0
+      fakeminute := fakeminute + 1
+    if fakeminute >= 60
+      fakeminute := 0
+      fakehour := fakehour + 1
+    if fakehour >= 13
+      fakehour := 1
+    second, minute, hour := fakesecond, fakeminute, fakehour
+    debug(`clockTerm 'Fake Time: `(hour) : `(minute) : `(second)', 10)
+
+    ' For testing purposes, allows you to set the time manually by writing to the variables that would normally be set by the clock reading cog
+
 
 {Pin Helper Methods}
 pri ClearQuadratureEncoder(bot_pin)

@@ -1,0 +1,406 @@
+CON
+  _clkfreq = 300_000_000
+
+  RINGS = 12
+  LEDS_PER_RING = 92
+
+  off            = 0                            '%00000000_00000000_00000000
+  red            = 255<<8                       '%00000000_11111111_00000000
+  green          = 255<<16                      '%11111111_00000000_00000000
+  blue           = 255                          '%00000000_00000000_11111111
+  white          = 255<<16+255<<8+255           '%11111111_11111111_11111111
+  cyan           = 255<<16+255                  '%11111111_00000000_11111111
+  magenta        = 255<<8+255                   '%00000000_11111111_11111111
+  yellow         = 255<<16+255<<8               '%11111111_11111111_00000000
+  chartreuse     = 255<<16+127<<8               '%11111111_01111111_00000000
+  orange         = 165<<16+255<<8               '%10100101_11111111_11010100
+  aquamarine     = 255<<16+127<<8+212           '%11111111_01111111_11010100
+  pink           = 192<<16+255<<8+203           '%11000000_11111111_11001011
+  turquoise      = 224<<16+64<<8+192            '%11100000_01000000_11000000
+  realwhite      = 255<<16+200<<8+255           '%11111111_11001000_11111111
+  indigo         = 75<<8+130                    '%00000000_01001011_10000010
+  violet         = 130<<16+238<<8+238           '%10000010_11101110_11101110
+
+  totledcount = RINGS * LEDS_PER_RING
+
+  spin_intensity = 30
+  hour_intensity = 30
+  minute_intensity = 50
+
+VAR
+  {Stacks for Cogs}
+  long Stack2[100], Stack3[100], Stack4[100], Stack5[100], Stack6[100], Stack7[100], Stack8[100]
+
+
+OBJ
+  'leds : "HourglassLED"
+
+
+VAR
+    long lights[RINGS * LEDS_PER_RING] 'total array of all leds for all 12 rings
+
+    byte minute_ring 'indicates which ring is currently representing the minute hand (1-12)
+    byte hour_ring 'indicates which ring is currently representing the hour hand (1-12)
+
+
+PUB Main() | i,j
+
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+  'debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
+
+  '0 IS 1 O'CLOCK, 1 IS 2 O'CLOCK, ETC
+
+  turnEverythingOff()
+  update()
+  waitms(3000)
+
+   'Set initial positions of hour and minute rings
+   'For testing purposes, set hour to 5 and minute to 5 (so they are on different rings)
+   'In final version, these will be set based on the current time
+
+  {leds.setHourRing(5)
+  leds.setMinuteRing(1)
+
+  'cogspin(6, leds.HourAnimation(), @Stack6)
+  cogspin(7, leds.MinuteAnimation(), @Stack7)}
+
+  minute_ring := 9
+  hour_ring := 9 -1
+
+  'MinuteAnimation()
+  'HourAnimation()
+
+  cogspin(6, HourAnimation(), @Stack6)
+  waitms(3000)
+  cogspin(7, MinuteAnimation(), @Stack7)
+
+CON '12 blues for ring colors (dark blue to light blue)
+  blue_0 = 255<<16+255<<8+255           '%11111111_11111111_11111111
+  blue_1 = 232<<16+232<<8+255           '%11101000_11101000_11111111
+  blue_2 = 209<<16+209<<8+255           '%11010001_11010001_11111111
+  blue_3 = 186<<16+186<<8+255           '%10111010_10111010_11111111
+  blue_4 = 163<<16+163<<8+255           '%10100011_10100011_11111111
+  blue_5 = 140<<16+140<<8+255           '%10001100_10001100_11111111
+  blue_6 = 117<<16+117<<8+255           '%01110101_01110101_11111111
+  blue_7 = 94<<16+94<<8+255             '%01011110_01011110_11111111
+  blue_8 = 71<<16+71<<8+255             '%01000111_01000111_11111111
+  blue_9 = 48<<16+58<<16+255
+  blue_10 = 25<<16+25<<8+255
+  blue_11 = 255                          '%00000000_00000000_11111111
+
+DAT
+  blues long blue_1, blue_2, blue_3, blue_4, blue_5, blue_6, blue_7, blue_8, blue_9, blue_10, blue_11, blue_0
+
+PUB allblue() | i,j
+  repeat i from 0 to 11
+    repeat j from 0 to 91
+      led(i,j, Intensity(blues[i], 45))
+  update()
+
+CON 'blue to orange gradient
+  blue_orange_11 = 255 '%00000000_00000000_11111111
+  blue_orange_0 = 60<<16 + 0<<8 + 180 '%00101000_00000000_11001000
+  blue_orange_1 = 100<<16 + 0<<8 + 100 '%00101000_01010101_10101010
+  blue_orange_2 = 100<<16 + 100<<8 + 80 '%00111100_10000000_10000000
+  blue_orange_3 = 90<<16 + 180<<8 + 0 '%01010000_10101010_01010101
+  blue_orange_4 = 60<<16 + 180<<8 + 0 '%01100100_11010100_00101010
+  blue_orange_5 = 60<<16 + 200<<8 + 0 '%01111000_11111111_00000000
+
+DAT
+  blue_orange long blue_orange_0, blue_orange_1, blue_orange_2, blue_orange_3, blue_orange_4, blue_orange_5, blue_orange_4, blue_orange_3, blue_orange_2, blue_orange_1, blue_orange_0, blue_orange_11
+
+PUB blueorange() | i,j
+repeat
+  repeat j from 0 to 91
+    repeat i from 0 to 11
+      led(i,j, Intensity(blue_orange[i], 45))
+    update()
+    waitms(20)
+
+  repeat j from 91 to 0
+    repeat i from 0 to 11
+      led(i,j, 0)
+    update()
+    waitms(20)
+
+PUB MinuteAnimation() | i_forward, i_backward, ring_num
+  'spirals non-active rings in and out
+  'before minute - blue gradient
+  'after minute - blank
+  'not really sure what these next two lines are for?
+  'todo: lights is an array from ws2812b driver
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+  repeat
+    repeat i_forward from 0 to 91
+      repeat ring_num from 0 to 11
+        'when not ring 0 (min 5)...
+        if minute_ring <> 0
+          'when ring is minute ring, increase brightness
+          if ring_num == minute_ring - 1
+            if ring_num == hour_ring - 1
+              if i_forward < 32 'only spin outermost ring
+                led(ring_num, i_forward, Intensity(blue, minute_intensity))
+            else
+              led(ring_num, i_forward, Intensity(blues[ring_num], minute_intensity))
+
+          'when ring is hour ring, skip
+          elseif ring_num == hour_ring - 1
+            next
+
+          'skip rings after minute ring unless it is hour 12 ring
+          elseif ring_num > minute_ring - 1
+            if ring_num == 11 'minute 0 ring (ring 11) would be active though
+              led(ring_num, i_forward, Intensity(blues[ring_num], spin_intensity))
+            'todo: these rings might need to be set to off rather than just skipped
+
+          'spin rings before minute ring
+          else 'all other rings spin
+            led(ring_num, i_forward, Intensity(blues[ring_num], spin_intensity))
+
+       'otherwise make 12 o'clock ring active
+        else
+          led(11, i_forward, Intensity(blues[ring_num], minute_intensity)) 'bright hour 12 (minute 0) ring
+      update()
+
+    repeat i_backward from 91 to 0
+      repeat ring_num from 0 to 11
+        led(ring_num,i_backward,0) 'turn off all rings
+      update()
+
+pub HourAnimation() '| prev_ring
+  ' animation for ring representing the hour
+  ' either color cycle
+  ' or outside ring spins (controlled in minute animation) while inner ring does color cycle
+  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
+
+  repeat
+    if hour_ring == minute_ring
+      MinuteOnHourAnimation(hour_ring, hour_color_cycle[0])
+    else
+      HourAnimation_general(hour_ring)
+
+DAT
+  hour_color_cycle long red, orange, yellow, green, blue, violet, cyan, magenta, white, pink
+
+PUB HourAnimation_general(ring_num) | i
+  repeat i from 0 to 9
+    change_color_down(ring_num, hour_color_cycle[i])
+    'todo quit early if hour (or minute) changes
+
+DAT 'arranging the circle into rows
+  layer1   long  9,10,11,12,13,14,15
+  layer2   long  8,16,39,40,41,42,43
+  layer3   long  7,17,38,44,61,62,63
+  layer4   long  6,18,37,45,60,64,75,76,77,78
+  layer5   long  5,19,36,46,59,65,74,79,86,87,88
+  layer6   long  4,20,35,47,58,66,85,89
+  layer7   long  3,21,34,48,57,67,73,80,84,91,90
+  layer8   long  2,22,33,49,56,68,72,83,82,81
+  layer9   long  1,23,32,50,71,70,69
+  layer10  long  0,55,54,53,52,51,24
+  layer11  long  25,26,27,28,29,30,31
+
+
+PUB change_color_down(ring, color) | i
+  'changes color in the ring from top to bottom
+  repeat i from 0 to 6
+    led(ring, layer1[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 6
+    led(ring, layer2[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 6
+    led(ring, layer3[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 9
+    led(ring, layer4[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 10
+    led(ring, layer5[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 7
+    led(ring, layer6[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 10
+    led(ring, layer7[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 9
+    led(ring, layer8[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 6
+    led(ring, layer9[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 6
+    led(ring, layer10[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+  repeat i from 0 to 6
+    led(ring, layer11[i], Intensity(color, hour_intensity))
+  update()
+  waitms(50)
+
+DAT 'arranging the circle into rows
+  layer2min   long  39,40,41,42,43
+  layer3min   long  38,44,61,62,63
+  layer4min   long  37,45,60,64,75,76,77,78
+  layer5min   long  36,46,59,65,74,79,86,87,88
+  layer6min   long  35,47,58,66,85,89
+  layer7min   long  34,48,57,67,73,80,84,91,90
+  layer8min   long  33,49,56,68,72,83,82,81
+  layer9min   long  32,50,71,70,69
+  layer10min  long  55,54,53,52,51
+
+pub MinuteOnHourAnimation(ring, color) | i
+    'changes color in the ring from top to bottom
+
+  'layer1 (skip)
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer2min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer3min[i], Intensity(color, 15) )
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7
+    led(ring, layer4min [i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 8
+    led(ring, layer5min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 5
+    led(ring, layer6min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 8
+    led(ring, layer7min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 7
+    led(ring, layer8min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer9min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  repeat i from 0 to 4
+    led(ring, layer10min[i], Intensity(color, 15))
+  update()
+  waitms(50)
+
+  'layer11
+  waitms(50)
+
+pub led(ring,LEDaddress,color)                            ''Changes the color of an LED at a specific address
+  'takes the ring number and the led number within that ring
+  lights[(ring*92)+LEDaddress]:=color
+
+pub spinRing(ring, color)| i
+  repeat i from 0 to 91
+    led(ring,i,color)
+    update()
+    waitms(10)
+
+pub spinRingReverse(ring, color)| i
+  turnRingColor(ring,color)
+  update()
+  repeat i from 91 to 0
+    led(ring,i,off)
+    update()
+    waitms(10)
+
+pub turnEverythingOff()| i,j
+  longfill(@lights,off,RINGS*LEDS_PER_RING) 'Set all values in "lights" array to zero (turning all LEDs off)
+ 'Print the entire "lights" array to the debug console (for testing purposes)
+
+pub turnRingColor(ring, color)
+  longfill(@lights+(4*ring*LEDS_PER_RING),color,LEDS_PER_RING) 'Set all values in a specific ring to the same color
+
+PUB Intensity(color, intense) : result | r, g, b
+    '' Scales a color (0xRRGGBB) or a single value (0-255) by intense (0-255)
+    intense := 0 #> intense <# 255
+
+    ' Apply Gamma Correction (Optional but highly recommended)
+    ' This makes "2" actually look dim to the human eye.
+    intense := (intense * intense) / 255
+
+    if color > $FF                             ' If input is a packed RGB long
+        r := ((color >> 16) & $FF) * intense / 255
+        g := ((color >> 8) & $FF) * intense / 255
+        b := (color & $FF) * intense / 255
+        return (r << 16) | (g << 8) | b        ' Return packed long
+    else                                       ' If input is just a single 0-255 value
+        return (color * intense) / 255         ' Return single byte for PWM
+
+PUB update() 'General-purpose Registers Used: pr0=address of "lights" variable, pr1=pin (these are passed to PASM from the Spin2 code)
+  pinl((pr1+12)..pr1)            'Send Low reset signal to WS2812B LEDs
+  waitus(300)                    'Reset signal width is 300us
+
+          org                    'Jump into inline Propeller 2 Assembly Code (running at ~6.67ns per line)
+          mov counter,#0         'Reset counter to 0
+          mov outputpin,pr1      'Start with 1st output pin
+          mov index,pr0          'Copy Hub RAM address of start of "lights" array to index variable
+          mov EndAddr,pr0        'Copy Hub RAM address of start of "lights" array to EndAddr variable
+Loop0     add EndAddr,#368       'Add 92 to EndAddr variable to get the last/end address of this section of the "lights" array
+
+Loop1     rdlong ledcolor,index  'Load new long of color data, output 24 bits to LED matrix
+          mov bit,#23            'Reset bit index pointer to 23
+Loop2     call #OutputBit        'Read and output bits 23 through 1
+          djnz bit, #Loop2       'Decrement bit index by 1, and if it is not zero, jump back up to "Loop2" line
+          call #OutputBit        'Read and output the last bit (bit zero) as well
+
+          add index,#4           'Move on to next long of data (4 bytes) representing the next LED in the "lights" array
+          cmp index,EndAddr  wz  'Check to see if index has reached end address, write Z flag if it has
+    if_nz jmp #Loop1             'If index is not zero, jump back up to "Loop1" line to grab another long of LED data
+
+          add counter,#1         'Add one to the counter
+          add outputpin,#1       'Add one to the output pin (stepping up from Pins 47-59)
+          cmp counter,#12  wz    'Check to see if counter has reached 12, write Z flag if it has
+    if_nz jmp #Loop0
+
+OutputBit testb ledcolor,bit wz  'Test bit from color data long, set Z flag to bit's state
+          drvh outputpin               'Drive output data pin High (start with pin on)
+    'If bit is High, send a One pulse signal (800ns High, 800ns Low)
+    if_z  waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238) (See WS2812B datasheet version 5)
+    if_z  drvl outputpin              'Drive output data pin Low
+    if_z  waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238)
+    'If bit is Low, send a Zero pulse signal (200ns High, 800ns Low)
+    if_nz waitx #88              'Wait for 300ns  (300ns/3.33ns=90, 90-2=88)
+    if_nz drvl outputpin               'Drive output data pin Low
+    if_nz waitx #238             'Wait for 800ns  (800ns/3.33ns=240, 240-2=238) (See WS2812B datasheet)
+          ret                    'Return from OutputBit subroutine
+
+counter   long 0                 'Use to store the counter value that counts which section of lights are being worked with
+index     long 0                 'Use as an index to specify LED number in the "lights" array matrix 0-63
+outputpin long 0                 'Keeps track of the output pin
+bit       long 0                 'Keeps track of which bit in the color data is being read and transmitted
+ledcolor  long 0                 'Stores an LED's color data from "lights" array in Hub RAM
+StartAddr long 0                 'Stores the starting Hub RAM address of "lights" array (for a set of 93 lights)
+EndAddr   long 0                 'Stores the final Hub RAM address of "lights" array (for a set of 93 lights)
+          end                    'End in-line assembly program
