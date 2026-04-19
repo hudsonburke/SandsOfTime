@@ -28,23 +28,20 @@ PUB Main()  | minute, hour
   leds.update()
   waitms(3000)
 
+  leds.HourSong(3)
 
 
+{
   leds.setMinuteRing(0)
   leds.setHourRing(1)
+
 
   cogspin(6, leds.HourAnimation(), @Stack6)
   waitms(1000)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
 
-  waitms(10000)
-  cogspin(5, HourStuff(), @Stack5)
-{
-  repeat hour from 1 to 12
-    leds.setHourRing(hour)
-    repeat minute from 0 to 11
-      leds.setMinuteRing(minute)
-      waitms(6000)
+  'waitms(10000)
+  'cogspin(5, HourStuff(), @Stack5)
 }
 
 PUB HourStuff()

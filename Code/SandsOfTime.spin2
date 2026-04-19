@@ -90,12 +90,10 @@ PUB Main() | minute_i, i
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
   leds.turnEverythingOff()
   leds.update()
-  waitms(1000)
 
   cogspin(6, leds.HourAnimation(), @Stack6)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
   waitms(1000)
-  cogspin(3, CheckHourChange(), @Stack3)
 
 {
   abs_init := 0
@@ -163,33 +161,16 @@ PUB Main() | minute_i, i
 
 {{Main Cog Helper Methods}}
 PUB OnTheHour(hour_num)
-  cogstop(6)
-  cogstop(7)
-  leds.turnEverythingOff()
-  leds.update()
-  waitms(1000)
-
-  cogspin(6, leds.HourAnimation(), @Stack6)
-  cogspin(7, leds.MinuteAnimation(), @Stack7)
-
-
-  cogspin(6, leds.HourSong(hour_num), @Stack6)
-
-  repeat until leds.getSongFinish() == 1
-
-  debug(`term0 'song finished, starting animation',10)
-  cogstop(6)
-  waitms(3000)
-  'cogspin(6, leds.MinuteAnimation(), @Stack6)
-  'cogspin(7, leds.HourAnimation(), @Stack7)
+  leds.HourSong(hour)
+  'leds.setHourChange(0)
 
 PUB CheckHourChange() : result
   pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
   repeat
-    repeat until leds.getHourChange()
-      waitms(1000)
+    'repeat until leds.getHourChange()
+    '  waitms(1000)
     OnTheHour(hour)
 
 

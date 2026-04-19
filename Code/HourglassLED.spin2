@@ -123,6 +123,9 @@ PUB GetMinuteRing() : ring
 PUB GetHourRing() : ring
   ring := global_hour_ring
 
+PUB setHourChange(change)
+  hour_change_flag := change
+
 PUB getHourChange() : result
   return hour_change_flag
 
@@ -210,12 +213,12 @@ PUB HourSong(hour_num)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
 
   setSongFinish(0)
-  {
-  FadeIn(blue, 0)
-  FadeOutSlow(blue, 0)
+  
+  FadeIn(blue, 8)
+  FadeOutSlow(blue, 8)
   waitms(100)
-  FadeIn(orange, 8)
-  FadeOutSlow(orange, 8)
+  FadeIn(orange, 0)
+  FadeOutSlow(orange, 0)
   waitms(100)
   FadeIn(blue, 1)
   FadeOutSlow(blue, 1)
@@ -223,6 +226,7 @@ PUB HourSong(hour_num)
 
   FadeIn(orange, 5)
   FadeOutFast(orange,5)
+  waitms(500)
 
   FadeIn(blue, 5)
   FadeOutSlow(blue, 5)
@@ -237,7 +241,7 @@ PUB HourSong(hour_num)
   FadeIn(orange, 8)
   waitms(song_tempo)
   FadeOutFast(orange,8)
-  }
+  
   HourChime(127<<16+255, hour_num)
 
   setSongFinish(1)
@@ -281,7 +285,6 @@ PUB HourChime(color, hour_num) | chime, int, i
     repeat chime from 0 to hour_num-1
       ChimeIn(color, chime)
       ChimeOut(color, chime)
-      debug(`term0 '`(chime)',10
 
 PUB ChimeIn(color, ring_num) | int, i, ring
   repeat int from 0 to 50
