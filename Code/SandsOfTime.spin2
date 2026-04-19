@@ -84,16 +84,16 @@ PUB Main() | minute_i, i
   debug(`term term0 pos 200 20 size 25 26 textsize 24 color white)
 
   {Initialize readers}
-  cogspin(1, ReadRTClock(), @Stack1)
+  cogspin(1, FakeTime(0, 0, 12, 60), @Stack1)
 
-  pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
+  {pr0:=@lights                 'Store Hub RAM address of start of "lights" array as pr0 (which PASM can read)
   pr1:=48                      'Specify first output pin as pr1 (which PASM can read)
   leds.turnEverythingOff()
   leds.update()
 
   cogspin(6, leds.HourAnimation(), @Stack6)
   cogspin(7, leds.MinuteAnimation(), @Stack7)
-  waitms(1000)
+  waitms(1000)}
 
 {
   abs_init := 0
@@ -257,7 +257,7 @@ pub ReadRTClock() |minute_divide
     'send hour and minute to led object
     leds.setHourRing(hour)
     leds.setMinuteRing(minute/5)
-    
+
     debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
     waitms(400) 'slow it down since lowest resulution is 1 second anyway
 
@@ -306,6 +306,24 @@ PUB ReadArmEncoder()
     arm_pos := rdpin(ArmEncBotPin)
     if pinr(IndSensor) == 0 and arm_pos <> 0 'will hopefully prevent slamming
       ClearQuadratureEncoder(ArmEncBotPin)
+pub FakeTime(fakesecond, fakeminute, fakehour, speed)
+  debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
+  repeat
+    waitms(1000/speed)
+    fakesecond := fakesecond + 1
+    if fakesecond >= 60
+      fakesecond := 0
+      fakeminute := fakeminute + 1
+    if fakeminute >= 60
+      fakeminute := 0
+      fakehour := fakehour + 1
+    if fakehour >= 13
+      fakehour := 1
+    second, minute, hour := fakesecond, fakeminute, fakehour
+    debug(`clockTerm 'Fake Time: `(hour) : `(minute) : `(second)', 10)
+
+    ' For testing purposes, allows you to set the time manually by writing to the variables that would normally be set by the clock reading cog
+
 
 {Pin Helper Methods}
 pri ClearQuadratureEncoder(bot_pin)
