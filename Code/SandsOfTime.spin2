@@ -254,8 +254,10 @@ pub ReadRTClock() |minute_divide
     ' Convert it to usable numbers for our purposes and return
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
 
+    'send hour and minute to led object
     leds.setHourRing(hour)
     leds.setMinuteRing(minute/5)
+    
     debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
     waitms(400) 'slow it down since lowest resulution is 1 second anyway
 
