@@ -5,56 +5,78 @@ CON
   IndSensor = 36
 
   {Quadrature Encoder Constants}
-  ArmEncTopPin = 33
-  ArmEncBotPin = 32
+  ArmEncBotPin = 32, ArmEncTopPin = 33
+  ' CPR = Counts per revolution
+  ArmEncCPR = 8192, ArmEncMaxCount = ArmEncCPR - 1
+  ArmEncTolerance = 20
 
-  QuadEncTolerance = 5 ' In encoder counts
+  Arm_Kp = 9*numBasePeriods/ArmEncCPR, Arm_Ki = 0, Arm_Kd = 0
+  Arm_Dt = 10, Arm_IntegralWindow = 100, Arm_MaxIntegral = 1000
 
   {Motor Constants}
   numClockPulses = 10
   numBasePeriods = 1000
 
+  LEFT_ARROW = 1
+
+VAR
+  long control_key
+
 OBJ
-  main_arm : "BTS7960" | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
+  arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=300
 
+pub Main()
+  debug(`term term0 pos 200 20 size 25 26 textsize 24 color white)
 
-pub ReadMainArmEncoder()  | count
-  main_arm.InitPins(numClockPulses, numBasePeriods)
-
-  dirlow(IndSensor) ' Inverted logic
-
-  debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
-
-  ' Home main arm
-  ' Start the quadrature encoder
   pinstart(ArmEncBotPin, p_quadrature + %0000<<28 + %0001<<24, 0, 0)
-  ' could find max counts
+  arm.InitPins(numClockPulses, numBasePeriods)
+  HomeArm()
   repeat
-    main_arm.Drive(500)
-    waitms(1000)
-    repeat until inb.[IndSensor-32]==0
-      count := rdpin(ArmEncBotPin)
-      debug(`term0 '`(count)' 10)
-      waitms(20)
+    SetArmPos(0)
 
-    main_arm.Stop()
-    debug(`term0 '------------------Triggered---------------', 10)
-    pinfloat(ArmEncBotPin) ' Should reset the count on the pin
-    pinlow(ArmEncBotPin)
-    count := rdpin(ArmEncBotPin)
-    debug(`term0 '`(count)',10)
-    waitms(2000)
+pub GetArmPos() : arm_pos
+  arm_pos := rdpin(ArmEncBotPin) & ArmEncMaxCount ' Mask to 13 bits since the encoder rolls over every 8192 counts
 
+pub SetArmPos(set_pos) | error, previous_error, integral, dt, start_time, derivative
+  error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
+  previous_error := error
+  integral := 0
+  start_time := getct()
+  repeat while abs(error) > ArmEncTolerance
+    dt := (getct() - start_time)/CLKFREQ
+    derivative := (error - previous_error)/dt
+    integral := integral + error
+    arm.Drive(Arm_Kp*error + Arm_Ki*integral + Arm_Kd*derivative)
+    previous_error := error
+    start_time := getct()
+    error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
+  arm.Stop()
+
+pub HomeArm()
+  debug(`term0 'Homing', 10)
+  pinfloat(IndSensor)
+  arm.DriveForward(500) ' Drive clockwise until it hits the induction sensor
+  repeat until pinr(IndSensor) == 0
+    debug(`term0 'Arm Encoder = `(GetArmPos())', 10, `dly(100))
+  ClearQuadratureEncoder(ArmEncBotPin)
+  arm.Stop()
+  SetArmPos(0) ' Move the arm to be at 0
+  debug(`term0 'Homed', 10)
+
+{
+Calculates and returns the direction (positive or negative) and distance from the current encoder
+count to the target; handles wraparound by always returning the shortest distance to the target
+}
+pub CalculateEncoderError(current, target, resolution) : error
+  error := target - current
+  if abs(error) > resolution/2
+    if error < 0
+      error:=error+resolution
+    else
+      error:=error-resolution
 
 {Pin Helper Methods}
-pri dirhigh(pin) ' TODO: Make these do pin ranges
-  if pin > 31
-    dirb.[pin-32]~~
-  else
-    dira.[pin]~~
-
-pri dirlow(pin)
-  if pin > 31
-    dirb.[pin-32]~
-  else
-    dira.[pin]~
+pri ClearQuadratureEncoder(bot_pin)
+  {Resets the quadrature encoder count on the smart pin by briefly setting it to input and then back to output}
+  pinfloat(bot_pin)
+  pinlow(bot_pin)

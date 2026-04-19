@@ -3,14 +3,19 @@ CON
 
 OBJ
   DS3234 : "DS3234" | SS=19, MOSI=18, MISO=17, SCLK=16, SQW=-1
+  
+VAR
+long second, minute, hour, day, date, month, year ' Store the information from the DS3234 Clock
 
-pub ClockTest() | second, minute, hour, day, date, month, year
-  debug(`term term0 pos 200 20 size 25 12 textsize 24 color white)
+pub ReadRTClock()
+  debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   DS3234.InitPins()
-  DS3234.SetTime12Hr(30, 59, 11)
+  DS3234.SetTime12Hr(50, 58, 11)
   repeat
     DS3234.GetTime()
-    second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
-    debug(`term0 '`(hour) :`(minute) :`(second)', 10)
-    waitms(200)
-    debug(`term0 clear)
+    ' Convert it to usable numbers for our purposes
+    second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()'
+    debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
+    waitms(400) 'slow it down since lowest resolution is 1 second anyway
+    ' TODO: Use the square wave output to read the time more efficiently and accurately
+    debug(`clockTerm clear)
