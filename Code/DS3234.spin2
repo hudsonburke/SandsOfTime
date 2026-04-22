@@ -8,24 +8,55 @@ CON
   SCLK = 3   ' SPI Clock
   SQW = -1   ' Optional Square Wave Interrupt Pin
 
+  CPOL = 1 ' Clock Polarity. 0 = SCLK is low when idle, 1 = SCLK is high when idle
+
+  Vcc = 5.0 ' Default Voltage. Setting this will change timing parameters for SPI communication
+
+  t_DC_MIN = 30 'ns, Data to SCLK Setup
+  t_CDH_MIN = 30 'ns, SCLK to Data Hold
+  t_CCS_MIN = 30 'ns, SCLK to CS setup
+  t_R_MAX = 200 'ns, SCLK Rise
+  t_F_MAX = 200 'ns, SCLK Fall
+  t_CC_MIN = 400 'ns, CS to SCLK Setup
+  t_CWH_MIN = 400 'ns, CS Inactive Time
+  t_CDZ_MAX = 40 'ns, CS to Output High Impedance
+
+  { For 2.7 <= Vcc <= 5.5V }
+  MAX_SPI_FREQ_5 = 4000000 ' 4MHz
+  t_CDD_MAX_5 = 80 'ns, SCLK to Data Valid
+  t_CL_MIN_5 = 110 'ns, SCLK Low Time
+  t_CH_MIN_5 = 110 'ns, SCLK High Time
+  t_CCH_MIN_5 = 100 'ns, SCLK to CS Hold
+
+  { For 2.0 <= Vcc < 2.7V }
+  MAX_SPI_FREQ_2 = 2000000 ' 2MHz
+  t_CDD_MAX_2 = 160 'ns, SCLK to Data Valid
+  t_CL_MIN_2 = 220 'ns, SCLK Low Time
+  t_CH_MIN_2 = 220 'ns, SCLK High Time
+  t_CCH_MIN_2 = 200 'ns, SCLK to CS Hold
+
   ' Chip register addresses
   #0, sec_r, min_r, hr_r, day_r, date_r, mo_cent_r, yr_r
 
   ' MSB determines read or write (0 - Read, 1 - Write)
-
   #$80, sec_w, min_w, hr_w, day_w, date_w, mo_cent_w, yr_w
   ' TODO: Add in Alarm and other things
 
 var
   byte time_raw[7]
-
+  word MAX_SPI_FREQ, t_CDD_MAX, t_CL_MIN, t_CH_MIN, t_CCH_MIN
 
 pub null() ' Not a top level object
 
-'*** SPI Helper functions ***
+'*** Helper functions ***
+pri waitns(ns) | count
+  count := getct()
+  waitct(clkfreq*ns/1_000_000_000 + count)
 
 pri SPIStart()
+  pinh(SCLK) 'The clock polarity is determined by the device based on the state of SCLK when CS goes low
   pinl(SS)
+  waitns(t_CCS_MIN)
 
 pri SPIEnd()
   pinh(SS)
@@ -34,19 +65,34 @@ pri SPIEnd()
 pri SPIRead(x) | i
   repeat 8
     pinh(SCLK)
-    byte[x] := byte[x]<<1 | pinr(MISO)  ' Sends MSB first
     pinl(SCLK)
+    byte[x] := byte[x]<<1 | pinr(MISO)  ' Sends MSB first
 
 {{Write 1 byte via SPI}}
 pri SPIWrite(value) | i
+  pinl(SCLK)
   repeat i from 7 to 0
-    pinh(SCLK)
     pinw(MOSI, value>>i & 1)
+    pinh(SCLK)
     pinl(SCLK)
 
 '*** Clock Functions ***
 
 pub InitPins()
+  'TODO: Add in checks and clamps for voltage
+  if Vcc >= 2.7
+    MAX_SPI_FREQ := MAX_SPI_FREQ_5
+    t_CDD_MAX := t_CDD_MAX_5
+    t_CL_MIN := t_CL_MIN_5
+    t_CH_MIN := t_CH_MIN_5
+    t_CCH_MIN := t_CCH_MIN_5
+  else
+    MAX_SPI_FREQ := MAX_SPI_FREQ_2
+    t_CDD_MAX := t_CDD_MAX_2
+    t_CL_MIN := t_CL_MIN_2
+    t_CH_MIN := t_CH_MIN_2
+    t_CCH_MIN := t_CCH_MIN_2
+
   pinf(MISO)
   dirhigh(MOSI) 'TODO: Look into whether these should start high or low
   dirhigh(SCLK)

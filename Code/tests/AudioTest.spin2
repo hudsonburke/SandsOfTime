@@ -1,0 +1,56 @@
+{Object_Title_and_Purpose}
+
+
+CON
+  _clkfreq = 300_000_000
+
+  {Audio Tracks}
+  {
+  001_LowBellOneHit (6 seconds, but during repetition without waiting the completion of entire sound file )
+        low bell sound is triggered every hour and half hour
+                when at half hour, only play one time,
+                when at hours, should repeat the sound file,
+                the repetition number should be aligned with hours,
+                eg: 2 clock, repeat twice, 5 clock, repeat five time, etc.
+        Keep in mind, the low bell sound should be executed after "slow bell tune"
+
+  002_HandMotionSand (40 seconds)
+    trigged when hand move to adjust sand panel to flip up side down of the hour glass
+
+  003_SlowBellTune (28 seconds)
+        slow bell tune is triggered every hour and half hour, followed by low bell sound.
+  }
+  LowSingleBell = 1
+  duration_1 = 6000 'ms
+  HandMotionSand = 2
+  duration_2 = 40000 'ms
+  SlowBell = 3
+  duration_3 = 28000 'ms
+
+VAR
+  long Stack1[100], Stack2[100], Stack3[100], Stack4[100], Stack5[100]
+
+  byte current_audio_track
+
+OBJ
+  audio : "WAV_Trigger_robertsonics" | TX=20, RX=21
+
+PUB AudioTest()
+
+  cogspin(5, AudioCog(), @Stack5)
+
+  repeat
+    current_audio_track := 1
+
+
+pub AudioCog()
+  audio.InitPins()
+  repeat
+    case current_audio_track
+      1: PlayHourSound()
+    audio.StopAll()
+
+
+pub PlayHourSound()
+  audio.PlayTrack(HandMotionSand)
+  waitms(duration_1)

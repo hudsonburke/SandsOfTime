@@ -38,14 +38,39 @@ CON
   Spin_Kp = 2, Spin_Ki = 0, Spin_Kd = 0
   Spin_Dt = 10, Spin_IntegralWindow = 100, Spin_MaxIntegral = 1000
 
+  {Audio Tracks}
+  {
+  001_LowBellOneHit (6 seconds, but during repetition without waiting the completion of entire sound file )
+        low bell sound is triggered every hour and half hour
+                when at half hour, only play one time,
+                when at hours, should repeat the sound file,
+                the repetition number should be aligned with hours,
+                eg: 2 clock, repeat twice, 5 clock, repeat five time, etc.
+        Keep in mind, the low bell sound should be executed after "slow bell tune"
+
+  002_HandMotionSand (40 seconds)
+    trigged when hand move to adjust sand panel to flip up side down of the hour glass
+
+  003_SlowBellTune (28 seconds)
+        slow bell tune is triggered every hour and half hour, followed by low bell sound.
+  }
+  LowSingleBell = 1
+  duration_1 = 6000 'ms
+  HandMotionSand = 2
+  duration_2 = 40000 'ms
+  SlowBell = 3
+  duration_3 = 28000 'ms
+
+
 
 VAR
   {Stacks for Cogs}
-  long Stack1[100], Stack2[100], Stack3[100], Stack4[100]
+  long Stack1[100], Stack2[100], Stack3[100], Stack4[100], Stack5[100]
 
   {Flags}
   byte last_flipped_minute
   byte abs_init
+  byte current_audio_track
 
   {Data}
   long arm_set_pos
@@ -58,6 +83,7 @@ OBJ
   hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
   hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
   leds : "HourglassLED"    | FIRST_RING_PIN = 48
+  audio : "WAV_Trigger_robertsonics" | TX=20, RX=21
 
 dat
 ' where arm needs to be to reach a certain hourglass (starting and ending at hour 12)
@@ -66,7 +92,7 @@ hour_pos long 0, 689, 1339, 2038, 2730, 3411, 4082, 4786, 5463, 6113, 6800, 7493
 
 ' how far arm needs to extend to reach in quadrature encoder counts (starting and ending at hour 12)
  '                    12     1     2     3     4     5     6     7     8     9    10    11    12
-hour_extension long 6939, 6896, 6886, 6802, 6740, 6596, 6556, 6661, 6703, 6848, 6951, 6909, 6939
+hour_extension long 6939, 6896, 6886, 6952, 6740, 6596, 6556, 6661, 6703, 6848, 6951, 6909, 6939
 
 PUB Main() | minute_i, i, watchdog_triggered
   {
@@ -110,6 +136,9 @@ PUB Main() | minute_i, i, watchdog_triggered
   cogspin(3, leds.HourAnimation(), @Stack3)
   cogspin(4, leds.MinuteAnimation(), @Stack4)
 
+  audio.Init()
+
+
   {End Setup}
   debug(`term0 'End of Setup', 10)
   repeat
@@ -119,7 +148,11 @@ PUB Main() | minute_i, i, watchdog_triggered
         minute_i := minute/5 + 1 ' since this is not floating point divide, should round down (i.e. 4/5 = 0) so the indices should line up
         EncSetPoint[minute_i] := EncSetPoint[minute_i] == 0 ? 512 : 0 ' Flip the setpoint to the opposite position to trigger the hourglass to flip
         debug(`term0 'Flipping Hourglass `(minute_i) in `(60 - second) seconds!', 10)
+        audio.PlayTrack(HandMotionSand)
         HourglassSeq(minute_i) ' Move the arm to flip the hourglass
+        leds.setHourRing(hour)
+        leds.setMinuteRing(minute/5)
+        audio.StopAll()
       else
         watchdog_triggered := false    'flag variable so we only fix one thing before checking other stuff
         repeat i from 1 to 12 ' TODO: Start from current hour
@@ -298,16 +331,11 @@ pub CalculateEncoderError(current, target, resolution) : error
 pub ReadRTClock()
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   DS3234.InitPins()
-  ' DS3234.SetTime12Hr(0, 10, 6) ' USE TO SET TIME
+  DS3234.SetTime12Hr(0, 24, 3) ' USE TO SET TIME
   repeat
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes and return
     second, minute, hour, day, date, month, year := DS3234.ConvertToReadable()
-
-    'send hour and minute to led object
-    ' TODO: probably move this to main orchestration loop
-    leds.setHourRing(hour)
-    leds.setMinuteRing(minute/5)
 
     debug(`clockTerm 'Current Time: `(hour) : `(minute) : `(second)', 10)
     waitms(400) 'slow it down since lowest resolution is 1 second anyway
