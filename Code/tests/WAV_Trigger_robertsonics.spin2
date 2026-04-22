@@ -1,0 +1,78 @@
+con
+  RX = -1 ' The pin that is connected to RX on the WAV board. Will be used for the txpin in jm_fullduplexserial
+  TX = 1  ' The pin that is connected to TX on the WAV board. Will be used for the rxpin in jm_fullduplexserial
+  MODE = 0 ' See jm_fullduplexserial start method
+  BAUD = 57_600
+
+
+obj
+  s : "jm_fullduplexserial"
+
+pub null()
+
+pub Init() | i
+  s.start(TX,RX,0,57_600)
+
+''Warning: these methods do not take into account an upper byte so this only works with up to 255 total tracks
+pub PlayTrack(track_number)
+  s.tx($F0)    'Send start of message byte #1 = $FA
+  s.tx($AA)    'Send start of message byte #2 = $AA
+  s.tx($09)    'Send total length of message (in this case 9 bytes)
+  s.tx($0D)    'Send CONTROL_TRACK command=$0D
+  s.tx($01)    'Send Control code = $01 to play track with polphony ($00=stop everything else and play solo)
+  s.tx(track_number) 'Send Track number's lower byte
+  s.tx($00)    'Send Track number's upper byte
+  s.tx($00)    'Send $01 to set lock flag (which prevents track's voice from being stolen)
+  s.tx($55)    'Send end of message byte = $55
+
+pub StopAll()
+  s.tx($F0)    'Send start of message byte #1 = $FA
+  s.tx($AA)    'Send start of message byte #2 = $AA
+  s.tx($05)    'Send total length of message (in this case 9 bytes)
+  s.tx($04)    'Send STOP_ALL command=$04
+  s.tx($55)    'Send end of message byte = $55
+
+pub StopTrack(track_number)
+  s.tx($F0)    'Send start of message byte #1 = $FA
+  s.tx($AA)    'Send start of message byte #2 = $AA
+  s.tx($09)    'Send total length of message (in this case 9 bytes)
+  s.tx($0D)    'Send CONTROL_TRACK command=$0D
+  s.tx($04)    'Send Control code = $04 to stop track
+  s.tx(track_number) 'Send Track number's lower byte
+  s.tx($00)    'Send Track number's upper byte
+  s.tx($00)    'Send $01 to set lock flag (which prevents track's voice from being stolen)
+  s.tx($55)    'Send end of message byte = $55
+
+pub PauseTrack(track_number)
+  s.tx($F0)    'Send start of message byte #1 = $FA
+  s.tx($AA)    'Send start of message byte #2 = $AA
+  s.tx($09)    'Send total length of message (in this case 9 bytes)
+  s.tx($0D)    'Send CONTROL_TRACK command=$0D
+  s.tx($02)    'Send Control code = $02 to pause track
+  s.tx(track_number) 'Send Track number's lower byte
+  s.tx($00)    'Send Track number's upper byte
+  s.tx($00)    'Send $01 to set lock flag (which prevents track's voice from being stolen)
+  s.tx($55)    'Send end of message byte = $55
+
+pub ResumeTrack(track_number) 'Note: Resume track only works after that track has been paused. It doesn't work if the track has been shut off for another track's solo or after an StopAll command
+  s.tx($F0)    'Send start of message byte #1 = $FA
+  s.tx($AA)    'Send start of message byte #2 = $AA
+  s.tx($09)    'Send total length of message (in this case 9 bytes)
+  s.tx($0D)    'Send CONTROL_TRACK command=$0D
+  s.tx($03)    'Send Control code = $03 to resume track
+  s.tx(track_number) 'Send Track number's lower byte
+  s.tx($00)    'Send Track number's upper byte
+  s.tx($00)    'Send $01 to set lock flag (which prevents track's voice from being stolen)
+  s.tx($55)    'Send end of message byte = $55
+
+pub SoloTrack(track_number)
+  s.tx($F0)    'Send start of message byte #1 = $FA
+  s.tx($AA)    'Send start of message byte #2 = $AA
+  s.tx($09)    'Send total length of message (in this case 9 bytes)
+  s.tx($0D)    'Send CONTROL_TRACK command=$0D
+  s.tx($00)    'Send Control code = $00 to stop all other tracks and play this track solo
+  s.tx(track_number) 'Send Track number's lower byte
+  s.tx($00)    'Send Track number's upper byte
+  s.tx($00)    'Send $01 to set lock flag (which prevents track's voice from being stolen)
+  s.tx($55)    'Send end of message byte = $55{Object_Title_and_Purpose}
+

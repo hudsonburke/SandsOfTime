@@ -148,11 +148,9 @@ PUB Main() | minute_i, i, watchdog_triggered
         minute_i := minute/5 + 1 ' since this is not floating point divide, should round down (i.e. 4/5 = 0) so the indices should line up
         EncSetPoint[minute_i] := EncSetPoint[minute_i] == 0 ? 512 : 0 ' Flip the setpoint to the opposite position to trigger the hourglass to flip
         debug(`term0 'Flipping Hourglass `(minute_i) in `(60 - second) seconds!', 10)
-        audio.PlayTrack(HandMotionSand)
         HourglassSeq(minute_i) ' Move the arm to flip the hourglass
         leds.setHourRing(hour)
         leds.setMinuteRing(minute/5)
-        audio.StopAll()
       else
         watchdog_triggered := false    'flag variable so we only fix one thing before checking other stuff
         repeat i from 1 to 12 ' TODO: Start from current hour

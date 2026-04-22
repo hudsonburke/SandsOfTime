@@ -54,3 +54,8 @@ pub AudioCog()
 pub PlayHourSound()
   audio.PlayTrack(HandMotionSand)
   waitms(duration_1)
+
+pub SoundWithLEDs(led_delay) | i
+  repeat i from 0 to 91
+    audio.PlayTrack()
+    waitms(led_delay)
