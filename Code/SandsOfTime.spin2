@@ -329,7 +329,7 @@ pub CalculateEncoderError(current, target, resolution) : error
 pub ReadRTClock()
   debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
   DS3234.InitPins()
-  DS3234.SetTime12Hr(0, 24, 3) ' USE TO SET TIME
+  'DS3234.SetTime12Hr(0, 24, 3) ' USE TO SET TIME
   repeat
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes and return

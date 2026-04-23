@@ -3,14 +3,14 @@ CON
 
 OBJ
   DS3234 : "DS3234" | SS=19, MOSI=18, MISO=17, SCLK=16, SQW=-1
-  
+
 VAR
 long second, minute, hour, day, date, month, year ' Store the information from the DS3234 Clock
 
 pub ReadRTClock()
-  debug(`term clockTerm pos 900 20 size 25 26 textsize 24 color white)
+  debug(`term clockTerm pos 900 20 size 26 2 textsize 24 color white)
   DS3234.InitPins()
-  DS3234.SetTime12Hr(50, 58, 11)
+  DS3234.SetTime12Hr(0, 34, 3)
   repeat
     DS3234.GetTime()
     ' Convert it to usable numbers for our purposes
