@@ -1,4 +1,4 @@
-{DS3234 RTC Clock Library}
+{DS3234 RTC Clock Driver for Propeller 2}
 {https://www.sparkfun.com/datasheets/BreakoutBoards/DS3234.pdf}
 
 CON
@@ -51,30 +51,43 @@ pub null() ' Not a top level object
 '*** Helper functions ***
 pri waitns(ns) | count
   count := getct()
-  waitct(clkfreq*ns/1_000_000_000 + count)
+  waitct(clkfreq*ns/1_000_000_000 + count) ' TODO: This probably doesn't work for smaller values of ns and clkfreq
 
-pri SPIStart()
-  pinh(SCLK) 'The clock polarity is determined by the device based on the state of SCLK when CS goes low
+pri SPIStart(address) | i
+  pinh(SS)
+  ' TODO
+  ' if CPOL == 0
+  '   pinl(SCLK) ' Ensure clock starts low for CPOL = 0
+  ' else
+  pinh(SCLK) ' Ensure clock starts high for CPOL = 1
   pinl(SS)
   waitns(t_CCS_MIN)
+  pinl(SCLK)
+  waitns(t_CC_MIN)
+  SPIWrite(address)
 
 pri SPIEnd()
-  pinh(SS)
+  pinh(SS)            ' Terminate the transaction
+  waitns(t_CWH_MIN)   ' 400ns CS Inactive time between transfers
 
 {{Read 1 byte via SPI into variable left shifted in; x should be address}}
-pri SPIRead(x) | i
+pri SPIRead(x)
   repeat 8
     pinh(SCLK)
-    pinl(SCLK)
+    waitns(t_CH_MIN)
     byte[x] := byte[x]<<1 | pinr(MISO)  ' Sends MSB first
+    pinl(SCLK)
+    waitns(t_CL_MIN)
 
 {{Write 1 byte via SPI}}
 pri SPIWrite(value) | i
-  pinl(SCLK)
   repeat i from 7 to 0
-    pinw(MOSI, value>>i & 1)
-    pinh(SCLK)
-    pinl(SCLK)
+    pinw(MOSI, value>>i & 1)     ' Set MOSI bit; sends MSB first
+    waitns(t_DC_MIN)             ' Wait for Data to SCLK setup time
+    pinh(SCLK)                   ' Rising edge: RTC samples the data here
+    waitns(t_CH_MIN)             ' Wait for minimum clock high time
+    pinl(SCLK)                   ' Falling edge
+    waitns(t_CL_MIN)             ' Wait for minimum clock low time
 
 '*** Clock Functions ***
 
@@ -94,8 +107,11 @@ pub InitPins()
     t_CCH_MIN := t_CCH_MIN_2
 
   pinf(MISO)
-  dirhigh(MOSI) 'TODO: Look into whether these should start high or low
-  dirhigh(SCLK)
+  pinl(MOSI)
+  if CPOL == 0
+    pinl(SCLK) ' Start clock low for CPOL = 0
+  else
+    pinh(SCLK) ' Start clock high for CPOL = 1
   pinh(SS)
 
   if SQW <> -1
@@ -103,16 +119,14 @@ pub InitPins()
 
 {{Gets raw time data from registers seconds through year $00-$06}}
 pub GetTime()  | i      ''Refresh time[0] through time[6] values
-  SPIStart()
-  SPIWrite(sec_r)
+  SPIStart(sec_r)
   repeat i from 0 to 6
     SPIRead(@time_raw[i])
   SPIEnd()
 
 
 pub SetTime12Hr(seconds, minutes, hours)
-  SPIStart()
-  SPIWrite(sec_w)
+  SPIStart(sec_w)
   seconds := (seconds/10)<<4 + seconds+//10
   SPIWrite(seconds)
   minutes := (minutes/10)<<4 + minutes+//10
@@ -198,16 +212,3 @@ pub ConvertToReadable() : sec, min, hr, dow, dte, mon, yr
   dte:=(time_raw[4]>>4)*10 + (time_raw[4] & $0f)                       'date
   mon:=(time_raw[5] & $10)*10 + (time_raw[5] & $0f)                    'month
   yr:=(time_raw[5]>>7)*100 + (time_raw[6]>>4)*10 + (time_raw[6] & $0f)    'year
-
-{Pin Helper Functions}
-pri dirhigh(pin)
-  if pin > 31
-    dirb.[pin-32]~~
-  else
-    dira.[pin]~~
-
-pri dirlow(pin)
-  if pin > 31
-    dirb.[pin-32]~
-  else
-    dira.[pin]~
