@@ -197,6 +197,9 @@ pub SetArmPos(set_pos) | error
     error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
   arm.Stop()
 
+pub ArmCog()
+  repeat
+
 ' TODO: Debug and tune all PID methods
 pub SetArmPosPID(set_pos) | error, previous_error, integral, derivative, target_cnt
   error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
@@ -219,9 +222,12 @@ pub HomeArm() | speed, direction
   debug(`term0 'Homing', 10)
   pinfloat(IndSensor)
   direction := 1
+  ' This repeat loop essentially performs a slow crawl back and forth until it detects the sensor being triggered and untriggered, which indicates that we have found the home position
+  ' Approaching slower ensures that we reset the quadrature encoder at the correct position and don't accidentally miss the sensor being triggered due to approaching too fast and having momentum carry us past the sensor before we can stop
   repeat speed from 500 to 150 step 175
     debug(`term0 'Direction = `(direction), Speed = `(speed)', 10)
     arm.Drive(direction*speed)
+    ' First wait for the sensor to be triggered, then wait for it to be untriggered to ensure we are actually homing and not just starting with the sensor already triggered
     repeat until pinr(IndSensor) == 0
     repeat until pinr(IndSensor) == 1
     ClearQuadratureEncoder(ArmEncBotPin)
@@ -285,8 +291,15 @@ pub Retract(speed)
   hand_extend.Stop()
 
 {Rotate the hourglass indicated by hr_i to an absolute encoder position given by set_pos}
-pub RotateHourglass(hr_i, set_pos) | error
+pub RotateHourglass(hr_i, set_pos) | error, previous_error
   error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
+  ' Slowly extend the arm until we see the encoder value change, which indicates that we have made contact with the hourglass and can start trying to rotate it
+  previous_error := error
+  repeat while abs(error-previous_error) < HourglassEncTolerance
+    hand_extend.Drive(800)
+    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution) 
+    previous_error := error
+  hand_extend.Stop()
   repeat while abs(error) > HourglassEncTolerance
     if error < 0 ' TODO: Currently this will only be positive
       hand_spin.Drive(1000) ' Currently just drives at full speed
