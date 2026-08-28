@@ -6,9 +6,9 @@ CON
   CSf = 12    ' End of encoder chip select pin range
   NumEnc = CSf - CS0 + 1
   CLK = 0, DATA = 13
-  HourglassEncTolerance = 10 ' In encoder counts
+  HourglassEncTolerance = 5 ' In encoder counts
   HourglassEncResolution = 1024 ' In counts per revolution
-  WatchdogTolerance = 15
+  WatchdogTolerance = 10
   HourglassEncDebugDelay = 200 ' ms to wait between printing encoder values in the abs encoder cog
 
   {Limit Switches}
@@ -144,7 +144,7 @@ PUB Main() | minute_i, i, watchdog_triggered
   {End Setup}
   debug(`term0 'End of Setup', 10)
   repeat
-      if (minute +// 5) == 4 && second +>= 50 && minute <> last_flipped_minute
+      if (minute +// 5) == 4 && second +>= 53 && minute <> last_flipped_minute
         ' Top Priority: Check if it's time to flip an hourglass
         last_flipped_minute := minute
         minute_i := minute/5 + 1 ' since this is not floating point divide, should round down (i.e. 4/5 = 0) so the indices should line up
@@ -168,6 +168,8 @@ PUB Main() | minute_i, i, watchdog_triggered
         debug(`term0 'Pointing to Hour `(hour)', 10)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
+        leds.setHourRing(hour)
+        leds.setMinuteRing(minute/5)
 
 
 {{Main Cog Helper Methods}}
