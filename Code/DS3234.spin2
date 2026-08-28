@@ -160,6 +160,7 @@ pub SetDateAndTime(seconds, minutes, hours, AMorPM, day, date, month, year)
   SPIWrite(year)
   SPIEnd()
 }
+{
 pub SetSeconds(seconds)
   SPIStart()
   SPIWrite(sec_w)
@@ -201,7 +202,7 @@ pub SetYear(year)
   SPIWrite(yr_w)
   SPIWrite(year)
   SPIEnd()
-
+}
 {{Returns time in readable format}}
 pub ConvertToReadable() : sec, min, hr, dow, dte, mon, yr
 

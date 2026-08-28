@@ -6,7 +6,7 @@ CON
   CSf = 12    ' End of encoder chip select pin range
   NumEnc = CSf - CS0 + 1
   CLK = 0, DATA = 13
-  HourglassEncTolerance = 5 ' In encoder counts
+  HourglassEncTolerance = 10 ' In encoder counts
   HourglassEncResolution = 1024 ' In counts per revolution
   WatchdogTolerance = 15
   HourglassEncDebugDelay = 200 ' ms to wait between printing encoder values in the abs encoder cog
@@ -35,6 +35,8 @@ CON
   Arm_Kp = 9*numBasePeriods/ArmEncCPR, Arm_Ki = 0, Arm_Kd = 0
   Arm_Dt = 10, Arm_IntegralWindow = 100, Arm_MaxIntegral = 1000
 
+  spinStallTimeout = 250 ' ms
+  spinStallThreshold = 2 ' Encoder counts
   Spin_Kp = 2, Spin_Ki = 0, Spin_Kd = 0
   Spin_Dt = 10, Spin_IntegralWindow = 100, Spin_MaxIntegral = 1000
 
@@ -81,7 +83,7 @@ OBJ
   DS3234 : "DS3234"        | SS=19, MOSI=18, MISO=17, SCLK=16, SQW=-1
   arm : "BTS7960"          | RPWM=31, LPWM=30, R_EN=29, L_EN=28, R_IS=27, L_IS=26, MinDuty=150
   hand_extend : "DRV8801"  | DIR=40, PWM=39, BRAKE=42, SLP=41, FAULT=-1, CS=-1, MinDuty=800
-  hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=800
+  hand_spin : "DRV8801"    | DIR=44, PWM=43, BRAKE=46, SLP=45, FAULT=-1, CS=-1, MinDuty=950
   leds : "HourglassLED"    | FIRST_RING_PIN = 48
   audio : "WAV_Trigger_robertsonics" | TX=20, RX=21
 
@@ -123,15 +125,15 @@ PUB Main() | minute_i, i, watchdog_triggered
 
   {Full Homing Sequence}
   Retract(1000)
-  ClearQuadratureEncoder(ExtendEncBotPin)
   HomeArm()
   ExtendArm(4000)
   Retract(650)
-  ClearQuadratureEncoder(ExtendEncBotPin)
 
   hand_spin.InitPins(numClockPulses, numBasePeriods)
   hand_spin.BrakeOn()
   last_flipped_minute := 60
+  leds.setHourRing(hour)
+  leds.setMinuteRing(minute/5)
 
   cogspin(3, leds.HourAnimation(), @Stack3)
   cogspin(4, leds.MinuteAnimation(), @Stack4)
@@ -163,7 +165,7 @@ PUB Main() | minute_i, i, watchdog_triggered
         if watchdog_triggered
           next
         ' Lowest priority: use the arm to point to the hour
-        debug(`term0 'Pointing to Hour `(i)', 10)
+        debug(`term0 'Pointing to Hour `(hour)', 10)
         SetArmPos(hour_pos[hour])
         ExtendArm(hour_extension[hour]+/2)
 
@@ -178,7 +180,6 @@ PUB CheckHourChange() : result
     'repeat until leds.getHourChange()
     '  waitms(1000)
     OnTheHour(hour)
-
 
 {Helper method for sequence to flip an hourglass given by its index}
 pub GetArmPos() : arm_pos
@@ -196,9 +197,6 @@ pub SetArmPos(set_pos) | error
     arm.Drive(200 #> Arm_Kp*error)
     error := CalculateEncoderError(GetArmPos(), set_pos, ArmEncCPR)
   arm.Stop()
-
-pub ArmCog()
-  repeat
 
 ' TODO: Debug and tune all PID methods
 pub SetArmPosPID(set_pos) | error, previous_error, integral, derivative, target_cnt
@@ -239,10 +237,10 @@ pub HomeArm() | speed, direction
 {Sequence to flip an hourglass given by its index}
 pub HourglassSeq(i) | error
   SetArmPos(hour_pos[i])
-  error := CalculateEncoderError(EncCurPos[i], EncSetPoint[i], HourglassEncResolution)
-  hand_spin.Drive(Spin_Kp*error)
-  ExtendArm(hour_extension[i])
-  RotateHourglass(i, EncSetPoint[i])
+  'error := CalculateEncoderError(EncCurPos[i], EncSetPoint[i], HourglassEncResolution)
+  'hand_spin.Drive(-Spin_Kp*error)
+  'ExtendArm(hour_extension[i])
+  RotateHourglassStall(i, EncSetPoint[i])
 
 pub ExtendArm(set_pos) | error
   ' TODO: Add safety check to prevent pinching fingers
@@ -289,17 +287,66 @@ pub Retract(speed)
       if pinr(LSRetract) == 1
         quit
   hand_extend.Stop()
+  ClearQuadratureEncoder(ExtendEncBotPin)
+
+pub RotateHourglassStall(hr_i, set_pos) | error, previous_error, stall_timer
+  repeat
+    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
+    if abs(error) <= HourglassEncTolerance
+      quit
+
+    ' Start spinning to facilitate meshing
+    if error < 0 ' TODO: Currently this will only be positive
+      hand_spin.Drive(1000) ' Currently just drives at full speed
+    else
+      hand_spin.Drive(-1000)
+
+    ' Extend until hourglass rotates indicating meshing
+    previous_error := error
+    repeat while abs(error-previous_error) < spinStallThreshold
+      hand_extend.Drive(600)
+      error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
+
+    debug(`term0 'Meshed', 10)
+    hand_extend.Stop()
+
+    previous_error := error
+    stall_timer := getct()
+    repeat while abs(error) > HourglassEncTolerance
+
+      if error < 0 ' TODO: Currently this will only be positive
+        hand_spin.Drive(1000) ' Currently just drives at full speed
+      else
+        hand_spin.Drive(-1000)
+
+      error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
+
+      ' Stall check
+      if abs(error - previous_error) > spinStallThreshold
+        previous_error := error
+        stall_timer := getct()
+      elseif (getct() - stall_timer) > (spinStallTimeout * (clkfreq / 1000))
+        debug(`term0 'Stall detected!', 10)
+
+        hand_extend.Drive(-600)
+        waitms(250)
+        hand_extend.Stop()
+        quit
+  hand_spin.Stop()
+
 
 {Rotate the hourglass indicated by hr_i to an absolute encoder position given by set_pos}
 pub RotateHourglass(hr_i, set_pos) | error, previous_error
   error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   ' Slowly extend the arm until we see the encoder value change, which indicates that we have made contact with the hourglass and can start trying to rotate it
+  ' TODO: Maybe put this all in one loop to account for kickback, etc.
   previous_error := error
   repeat while abs(error-previous_error) < HourglassEncTolerance
-    hand_extend.Drive(800)
-    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution) 
+    hand_extend.Drive(600)
     previous_error := error
+    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   hand_extend.Stop()
+  'ExtendArm(rdpin(ExtendEncBotPin)-2*ExtendEncTolerance)
   repeat while abs(error) > HourglassEncTolerance
     if error < 0 ' TODO: Currently this will only be positive
       hand_spin.Drive(1000) ' Currently just drives at full speed
@@ -377,7 +424,7 @@ pub ReadAbsEncoders() | i, index
       index := i - CS0 + 1
       debug(`absEncoders 'Encoder Current `(index) = `(EncCurPos[index])', 10)
       debug(`absEncoders 'Encoder SetPoint `(index) = `(EncSetPoint[index])', 10)
-    'debug(`absEncoders `dly(HourglassEncDebugDelay))
+    debug(`absEncoders `dly(HourglassEncDebugDelay))
     debug(`absEncoders clear)
 
 pub ReadAbsOnce(i) | value
