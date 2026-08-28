@@ -17,7 +17,7 @@ CON
 
   {Quadrature Encoders}
   ExtendEncBotPin = 34, ExtendEncTopPin = 35
-  ExtendEncTolerance = 25
+  ExtendEncTolerance = 50
 
   ArmEncBotPin = 32, ArmEncTopPin = 33
   ' CPR = Counts per revolution
@@ -29,7 +29,7 @@ CON
   numBasePeriods = 1000
 
   {Control Constants}
-  Extend_Kp = 6, Extend_Ki = 0, Extend_Kd = 0
+  Extend_Kp = 8, Extend_Ki = 0, Extend_Kd = 0
   Extend_Dt = 10, Extend_IntegralWindow = 100, Extend_MaxIntegral = 1000
 
   Arm_Kp = 9*numBasePeriods/ArmEncCPR, Arm_Ki = 0, Arm_Kd = 0
@@ -237,9 +237,6 @@ pub HomeArm() | speed, direction
 {Sequence to flip an hourglass given by its index}
 pub HourglassSeq(i) | error
   SetArmPos(hour_pos[i])
-  'error := CalculateEncoderError(EncCurPos[i], EncSetPoint[i], HourglassEncResolution)
-  'hand_spin.Drive(-Spin_Kp*error)
-  'ExtendArm(hour_extension[i])
   RotateHourglassStall(i, EncSetPoint[i])
 
 pub ExtendArm(set_pos) | error
@@ -291,6 +288,7 @@ pub Retract(speed)
 
 pub RotateHourglassStall(hr_i, set_pos) | error, previous_error, stall_timer
   repeat
+  ' ' If already in correct position, do nothing
     error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
     if abs(error) <= HourglassEncTolerance
       quit
@@ -332,43 +330,6 @@ pub RotateHourglassStall(hr_i, set_pos) | error, previous_error, stall_timer
         waitms(250)
         hand_extend.Stop()
         quit
-  hand_spin.Stop()
-
-
-{Rotate the hourglass indicated by hr_i to an absolute encoder position given by set_pos}
-pub RotateHourglass(hr_i, set_pos) | error, previous_error
-  error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
-  ' Slowly extend the arm until we see the encoder value change, which indicates that we have made contact with the hourglass and can start trying to rotate it
-  ' TODO: Maybe put this all in one loop to account for kickback, etc.
-  previous_error := error
-  repeat while abs(error-previous_error) < HourglassEncTolerance
-    hand_extend.Drive(600)
-    previous_error := error
-    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
-  hand_extend.Stop()
-  'ExtendArm(rdpin(ExtendEncBotPin)-2*ExtendEncTolerance)
-  repeat while abs(error) > HourglassEncTolerance
-    if error < 0 ' TODO: Currently this will only be positive
-      hand_spin.Drive(1000) ' Currently just drives at full speed
-    else
-      hand_spin.Drive(-1000)
-    'hand_spin.Drive(Spin_Kp*error)
-    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
-  hand_spin.Stop()
-
-pub RotateHourglassPID(hr_i, set_pos) | error, previous_error, integral, derivative, target_cnt
-  error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
-  previous_error := error
-  integral := 0
-  target_cnt := getct() + (CLKFREQ / 100) ' Force a 10ms loop time
-  repeat while abs(error) > HourglassEncTolerance
-    derivative := (error - previous_error)
-    integral := integral + error
-    hand_spin.Drive(Spin_Kp*error + Spin_Ki*integral + Spin_Kd*derivative)
-    previous_error := error
-    waitct(target_cnt)
-    target_cnt := getct() + (CLKFREQ / 100) ' Force a 10ms loop time
-    error := CalculateEncoderError(EncCurPos[hr_i], set_pos, HourglassEncResolution)
   hand_spin.Stop()
 
 {
